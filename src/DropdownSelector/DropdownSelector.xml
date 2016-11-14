@@ -1,30 +1,41 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <widget id="DropdownSelector.widget.DropdownSelector" needsEntityContext="true" xmlns="http://www.mendix.com/widget/1.0/">
     <name>DropdownSelector</name>
-    <description>The description of this widget.</description>
+    <description>Enhancement of the standard html form dropdown element for usability and UX purposes. Adds a placeholder functionality as well as the creation of a stylable version of the dropdown and it's elements.</description>
 
     <icon />
 
     <properties>
-        <property key="backgroundColor" type="attribute">
-            <caption>Background Color</caption>
+        <property key="placeholderText" type="string" required="false" defaultValue="">
+            <caption>Placeholder</caption>
             <category>Appearance</category>
-            <description>The background color of the widget.</description>
-            <attributeTypes>
-                <attributeType name="String" />
-            </attributeTypes>
+            <description>The placeholder text</description>
         </property>
-        <property key="messageString" type="string" required="true" defaultValue="">
-            <caption>Message</caption>
+        <property key="renderingMode" type="enumeration" defaultValue="default">
+            <caption>Rendering Mode</caption>
             <category>Appearance</category>
-            <description>The message visible within the widget.</description>
+            <description>The visual rendering of the select</description>
+            <enumerationValues>
+                <enumerationValue key="default">only add placeholderText</enumerationValue>
+                <enumerationValue key="onlySelect">replace select field</enumerationValue>
+                <enumerationValue key="full">replace select field and dropdown menu</enumerationValue>
+            </enumerationValues>
+        </property>
+        <property key="disableOnDevice" type="boolean" defaultValue="true" required="true">
+            <caption>Use default on device</caption>
+            <category>Appearance</category>
+            <description>Keep the traditional select element when using tablet or mobile</description>
+        </property>
+        <property key="targetName" type="string" required="true" defaultValue="">
+            <caption>Target dropdown</caption>
+            <category>General</category>
+            <description>Enter the name of the dropdown that needs to be enhanced.</description>
         </property>
         <property key="mfToExecute" type="microflow" required="false" defaultValue="">
             <caption>Microflow</caption>
             <category>Behavior</category>
-            <description>The microflow to execute on click.</description>
+            <description>The microflow to execute on click. </description>
             <returnType type="Boolean" />
         </property>
     </properties>
 </widget>
-

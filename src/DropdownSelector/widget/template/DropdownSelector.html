@@ -1,10 +1,9 @@
-<div class="widgetname">
-    <form>
-        <div class="input-group" data-dojo-attach-point="inputNodes">
-            <input type="text" class="form-control" placeholder="#rrggbb" data-dojo-attach-point="colorInputNode">
-            <div class="input-group-addon"><input type="color" data-dojo-attach-point="colorSelectNode"></div>
-        </div>
-    </form>
-    <div class="widgetname-infoTextNode" data-dojo-attach-point="infoTextNode" />
+<div class="dropdown-selector">
+    <input type="text" class="dropdown-value-field form-control" data-dojo-attach-point="selectValueFieldNode"/>
+    <span class="glyphicon glyphicon-menu-down"/>
+    <div class="dropdown-selector-options" data-dojo-attach-point="dropdownSelectorMenuNode">
+        <ul data-dojo-attach-point="listNode">
+        </ul>
+    </div>
 </div>
 
