@@ -55,6 +55,7 @@ define([
 
         // Internal variables. Non-primitives created in the prototype are shared between all widget instances.
         _handles: null,
+        _eventHandles: null,
         _contextObj: null,
         _formGroupNode: null,
         _selectNode: null,
@@ -66,6 +67,7 @@ define([
         constructor: function () {
             logger.debug(this.id + ".constructor");
             this._handles = [];
+            this._eventHandles = [];
             this._optionDomArray = [];
             this._optionArray = [];
         },
@@ -137,21 +139,44 @@ define([
         _setupEvents: function (callback) {
             logger.debug(this.id + "._setupEvents");
 
-            this.connect(this._selectNode, "click", dojoLang.hitch(this, function(e){
-                console.log("just clicked the bitch");
-            }));
+             switch(this.renderingMode) {
+                case "onlySelect":
+                    this._eventHandles.push(
+                        this.connect(this.selectValueFieldNode,"click", dojoLang.hitch(this,function(e){
+                            dojoEvent.stop(e);
+                            console.log ('just clicked the input field hoor');
+                        }))
+                    );
+                    
+                    break;
+                case "full":
 
-            this.connect(this._selectNode, "change", dojoLang.hitch(this, function(e){
-                var newIndex = e.currentTarget.options.selectedIndex;
+                    //  this.selectValueFieldNode.placeholder = this.placeholderText;
 
-                if (newIndex > 0) {
-                   dojoClass.add(this._selectNode, "option-selected");
-                } else {
-                   dojoClass.remove(this._selectNode, "option-selected");
-                }
+                    break;
+                case "default":
+                default:
+                    this._eventHandles.push(
+                        this.connect(this._selectNode, "click", dojoLang.hitch(this, function(e){
+                            console.log("just clicked the bitch");
+                        }))
+                    );
 
-                console.log("changed the bitch to " + newIndex);
-            }));
+                     this._eventHandles.push(
+                         this.connect(this._selectNode, "change", dojoLang.hitch(this, function(e){
+                            var newIndex = e.currentTarget.options.selectedIndex;
+
+                            if (newIndex > 0) {
+                                dojoClass.add(this._selectNode, "option-selected");
+                            } else {
+                                dojoClass.remove(this._selectNode, "option-selected");
+                            }
+
+                            console.log("changed the bitch to " + newIndex);
+                        }))
+                     );
+                    break;
+            }
 
             /*this.connect(this.infoTextNode, "click", function (e) {
                 // Only on mobile stop event bubbling!
@@ -186,7 +211,7 @@ define([
         _updateRendering: function (callback) {
             switch(this.renderingMode) {
                 case "onlySelect":
-                    console.log("onlyseelct selected");
+                    console.log("only select selected");
                     dojoConstruct.destroy(this.dropdownSelectorMenuNode);
 
                     this.selectValueFieldNode.placeholder = this.placeholderText;
@@ -195,7 +220,7 @@ define([
                 case "full":
                     console.log("full rendering enabled");
 
-                  //  this.selectValueFieldNode.placeholder = this.placeholderText;
+                    //  this.selectValueFieldNode.placeholder = this.placeholderText;
 
                     break;
                 case "default":
@@ -229,6 +254,15 @@ define([
               });
               this._handles = [];
           }
+
+          if ( this._eventHandles) {
+              dojoArray.forEach( this._eventHandles,function( eventHandle){
+                  this.disconnect(eventHandle);
+              });
+               this._eventHandles = [];
+          }
+
+          /* type hier custom events bij */
         },
 
         // Reset subscriptions.
