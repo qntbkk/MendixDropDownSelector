@@ -17,7 +17,6 @@
             <description>The visual rendering of the select</description>
             <enumerationValues>
                 <enumerationValue key="default">only add placeholderText</enumerationValue>
-                <enumerationValue key="onlySelect">replace select field</enumerationValue>
                 <enumerationValue key="full">replace select field and dropdown menu</enumerationValue>
             </enumerationValues>
         </property>
@@ -31,10 +30,10 @@
             <category>General</category>
             <description>Enter the name of the dropdown that needs to be enhanced.</description>
         </property>
-        <property key="mfToExecute" type="microflow" required="false" defaultValue="">
-            <caption>Microflow</caption>
+        <property key="mfOnChange" type="microflow" required="false" defaultValue="">
+            <caption>On Change Microflow</caption>
             <category>Behavior</category>
-            <description>The microflow to execute on click. </description>
+            <description>The microflow to execute on change.</description>
             <returnType type="Boolean" />
         </property>
     </properties>

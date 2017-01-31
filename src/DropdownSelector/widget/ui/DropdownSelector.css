@@ -1,7 +1,31 @@
-.dropdown-selector{
-    
+.dropdown-selector {
+    position: relative;
 }
 
+.dropdown-selector .dropdown-toggle {
+    text-align: left;
+}
+
+.dropdown-selector .dropdown-toggle .glyphicon {
+    float: right;
+}
+
+
+.dropdown-selector .dropdown-toggle .placeholder {
+    color: #CCC;
+    font-style: italic;
+}
+
+.dropdown-selector .dropdown-menu {
+    width: 100%;
+}
+
+.dropdown-selector .dropdown-menu li:first-child a {
+    color: #CCC;
+    font-style: italic;
+}
+
+/*
 .dropdown-value-field {
     position: absolute;
     width:100%;
@@ -22,7 +46,7 @@
 
 .relative {
     position: relative;
-}
+}*/
 
 /* temp for testing */
 select,
