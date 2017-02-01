@@ -18,6 +18,7 @@
 
 .dropdown-selector .dropdown-menu {
     width: 100%;
+    margin-top:0;
 }
 
 .dropdown-selector .dropdown-menu li:first-child a {
