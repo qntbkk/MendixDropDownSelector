@@ -56,25 +56,29 @@ define([
         renderingMode: null,
 
         // Internal variables. Non-primitives created in the prototype are shared between all widget instances.
-        _handles: null,
         _eventHandles: null,
         _contextObj: null,
-        _formGroupNode: null,
+        _targetNameNode: null,
         _selectNode: null,
+        _selectNodeContainer: null,
+        _formGroupNode:null,
         _optionDomArray: null,
         _optionArray: null,
         _newOptionDomArray: null,
         _selectedIndex: null,
-        _goingOnce: null,
+        _controlLabelUsed: null,
+        _controlLabelNode: null,
+        _horizontalForm: null,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function () {
             logger.debug(this.id + ".constructor");
-            this._handles = [];
             this._eventHandles = [];
             this._optionDomArray = [];
             this._optionArray = [];
             this._newOptionDomArray = [];
+            this._controlLabelUsed = true;
+            this._horizontalForm = false;
         },
 
         // dijit._WidgetBase.postCreate is called after constructing the widget. Implement to do extra setup work.
@@ -89,18 +93,41 @@ define([
             logger.debug(this.id + ".update");
             this._contextObj = obj;
 
-            // find all nodes
-            this._formGroupNode = dojoQuery(this.targetName);
-            this._formGroupNode = this._formGroupNode[0];
-            if (this._formGroupNode) {
-                //dojoClass.add(this._formGroupNode, "relative"); //TODO check if this is needed
-                this._selectNode = dojoQuery('select',this._formGroupNode)[0];
+            // find all nodes TODO: cleanup
+            this._targetNameNode = dojoQuery(this.targetName);
+            this._targetNameNode = this._targetNameNode[0];
+            this._formGroupNode = this._targetNameNode;
+            if (this._targetNameNode) {
+                this._selectNode = dojoQuery('select',this._targetNameNode)[0];
+                // locate control - label
+                var labels = dojoQuery(".control-label",this._formGroupNode);
+                if (labels.length === 0) {                
+                    this._controlLabelUsed = false; 
+                } else {
+                    this._controlLabelUsed = true;
+                    this._controlLabelNode = labels[0];
+
+                    // if a label is present we can detect if it is vertical - note horizontal only enabled when label is present
+                    var classString = dojoAttr.get(this._controlLabelNode,"class");
+                    if (classString.indexOf("col-sm") !== -1) {
+                        this._horizontalForm = true;
+                    } else {
+                        this._horizontalForm = false;
+                    }
+                }
             } else {
                 logger.debug("there was no Mendix widget found with the specified target name");
                 callback();
                 return;
             }
             if (this._selectNode) {
+                // set parent container - note: for some reason normal parent or parentNode doesn't work
+                this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div")[0];
+                if (this._horizontalForm) {
+                    var horizontalInputWidth = this._retrieveInputWidth(this._selectNodeContainer);
+                    dojoClass.add(this.domNode, horizontalInputWidth);
+                }
+
                 // create an array with all the possible options
                 this._selectedIndex = this._selectNode.options.selectedIndex;
                 this._optionDomArray = dojoQuery('option',this._selectNode);
@@ -118,7 +145,7 @@ define([
                 return;
             }
             this._resetSubscriptions();
-            this._updateRendering(callback());
+            this._updateRendering(callback);
         },
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
@@ -127,8 +154,11 @@ define([
             logger.debug(this.id + ".enable");
             switch(this.renderingMode){
                 case "full":
-
-                    dojoConstruct.place(this.domNode,this._formGroupNode,1);
+                    // reset the styling and button. Note that the update function will be triggered after this.
+                    // add and move the button once more
+                    this.domNode.appendChild(this.selectDropdownButton);
+                    dojoConstruct.place(this.selectDropdownButton,this.domNode,0);
+                    dojoStyle.set(this.domNode,"display","");
                     break;
                 case "default":
                 default:
@@ -142,19 +172,21 @@ define([
             logger.debug(this.id + ".disable");
             switch(this.renderingMode) {
                 case "full":
-                    //dojoStyle.set(this.domNode,"display","none");
-                    // TODO: testing destroy as a way
-                    if ( this._eventHandles) {
-                        dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
-                            this.disconnect(eventHandle);
-                        }));
-                        this._eventHandles = [];
-                    }
-                    dojoConstruct.destroy(this.domNode);
+                    // get rid of the eventHandles
+                    this._unsubscribe();
+
+                    // get rid of list elements and hide the domNode (we need to keep it as we still want the events)
+                    dojoArray.forEach(this._newOptionDomArray, dojoLang.hitch(this,function(optionDom) {
+                        dojoConstruct.destroy(optionDom);
+                    }));
+                    this._newOptionDomArray = [];
+                    dojoStyle.set(this.domNode,"display","none");
+                    // remove button but keep it in memory
+                    this.domNode.removeChild(this.selectDropdownButton);
                     break;
                 case "default":
                 default:
-                    // do nothing, only relevant for versions where
+                    // do nothing, only relevant for versions where we replaced the input
                     break;
             }
         },
@@ -169,6 +201,58 @@ define([
           logger.debug(this.id + ".uninitialize");
           this._unsubscribe();
             // Clean up listeners, helper objects, etc. There is no need to remove listeners added with this.connect / this.subscribe / this.own.
+        },
+
+         // Rerender the interface.
+        _updateRendering: function (callback) {
+            switch(this.renderingMode) {
+                case "full":
+                    // move the custom widget dom
+                    dojoConstruct.place(this.domNode,this._formGroupNode,1);
+
+                    // if listitems allready exist: remove them.
+                    if (this._newOptionDomArray && this._newOptionDomArray.length > 0 ) {
+                        dojoArray.forEach(this._newOptionDomArray,dojoLang.hitch(this,function(optionDom) {
+                            dojoConstruct.destroy(optionDom);
+                            // kan hier ook weggooien.
+                        }));
+                        this._newOptionDomArray = [];
+                    }
+
+                    // create the list items
+                    dojoArray.forEach(this._optionArray,dojoLang.hitch(this, function(option){
+                        this._createListItem(option, this.dropdownSelectorMenuNode); 
+                    }));
+
+                    // set the buttontext and styling
+                    dojoAttr.set(this.selectValueFieldNode,'data-placeholder', this.placeholderText);
+                    this._setSelectButton();
+
+                    // hide the original select                         
+                    dojoAttr.set(this._selectNode,"tabindex","-1"); 
+                    dojoStyle.set(this._selectNode,"display","none");
+                    break;
+                case "default":
+                default:
+                    // destroy the template since we won't be using it
+                    dojoConstruct.destroy(this.domNode);
+
+                    // create the placeholder functionality in original option
+                    if (this._optionDomArray[0]){
+                        this._optionDomArray[0].innerHTML = this.placeholderText;
+                    }
+                    // adjust the button
+                    if (this._selectedIndex !== 0) {
+                        dojoClass.add(this._selectNode, "option-selected");
+                    } else {
+                        dojoClass.remove(this._selectNode, "option-selected");
+                    }
+                    break;
+            }
+            
+            logger.debug(this.id + "._updateRendering");
+
+            this._setupEvents(callback);  
         },
 
         // We want to stop events on a mobile device
@@ -189,9 +273,15 @@ define([
                     this._eventHandles.push(this.connect(this.selectDropdownButton, "click", dojoLang.hitch(this,this._clickedDropdown)));
                     this._eventHandles.push(this.connect(this.selectDropdownButton, "keydown", dojoLang.hitch(this,this._buttonKeyDown)));
 
+                    // if label is present we need to make sure that clicking on it will close it as well
+                    if (this._controlLabelUsed){
+                        this._eventHandles.push(this.connect(this._controlLabelNode, "click", dojoLang.hitch(this,this._clickedControlLabel)));
+                    }
+
                     // set event to window for automatically closing the
                     this._eventHandles.push(this.connect(document, "click", dojoLang.hitch(this,function(event){
                         // if a widget external click is made: close the menu if open. first check though if the window click is not bubbled from this instance
+                        //if (!this._selectNodeContainer.contains(event.target)){
                         if (!this._formGroupNode.contains(event.target)) {
                             var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded")
                             if (isOpenString == "true") {
@@ -230,84 +320,10 @@ define([
                      );
                     break;
             }
-
-            /*this.connect(this.infoTextNode, "click", function (e) {
-                // Only on mobile stop event bubbling!
-                this._stopBubblingEventOnMobile(e);
-
-                // If a microflow has been set execute the microflow on a click.
-                if (this.mfOnChange !== "") {
-                    mx.data.action({
-                        params: {
-                            applyto: "selection",
-                            actionname: this.mfToExecute,
-                            guids: [ this._contextObj.getGuid() ]
-                        },
-                        store: {
-                            caller: this.mxform
-                        },
-                        callback: function (obj) {
-                            //TODO what to do when all is ok!
-                        },
-                        error: dojoLang.hitch(this, function (error) {
-                            logger.error(this.id + ": An error occurred while executing microflow: " + error.description);
-                        })
-                    }, this);
-                }
-            });*/
             
             // The callback, coming from update, needs to be executed, to let the page know it finished rendering
             mendix.lang.nullExec(callback);
             console.log("just did the callback, so finished to loop");
-        },
-
-        // Rerender the interface.
-        _updateRendering: function (callback) {
-            switch(this.renderingMode) {
-                case "full":
-                    // move the custom widget dom
-                    dojoConstruct.place(this.domNode,this._formGroupNode,1);
-
-                    // if listitems allready exist: remove them.
-                    if (this._newOptionDomArray && this._newOptionDomArray.length > 0 ) {
-                        dojoArray.forEach(this._newOptionDomArray,dojoLang.hitch(this,function(optionDom) {
-                            dojoConstruct.destroy(optionDom);
-                        }));
-                        this._newOptionDomArray = [];
-                    }
-
-                    // create the list items
-                    dojoArray.forEach(this._optionArray,dojoLang.hitch(this, function(option){
-                        this._createListItem(option, this.dropdownSelectorMenuNode); 
-                    }));
-
-                    // set the buttontext and styling
-                    dojoAttr.set(this.selectValueFieldNode,'data-placeholder', this.placeholderText);
-                    this._setSelectButton();
-
-                    // hide the original select                         
-                    //dojoAttr.set(this._selectNode,"style","display:none;");
-                    var selectWrapper = dojoTraverse(this._selectNode).parent()[0];
-                    dojoAttr.set(this._selectNode,"tabindex","-1");
-                    dojoStyle.set(this._selectNode,"display","none");
-                    break;
-                case "default":
-                default:
-                    // destroy the template since we won't be using it
-                    dojoConstruct.destroy(this.domNode);
-
-                    // create the placeholder functionality in original option
-                    if (this._optionDomArray[0]){
-                        this._optionDomArray[0].innerHTML = this.placeholderText;
-                    }
-                    // adjust the button
-                    this._setSelectButton();
-                    break;
-            }
-            
-            logger.debug(this.id + "._updateRendering");
-
-            this._setupEvents(callback);  
         },
 
         _createListItem: function(option, listNode) {
@@ -352,6 +368,13 @@ define([
             var isOpenString = dojoAttr.get(event.currentTarget,"aria-expanded");
             // toggle the menu
             this._toggleDropdown(isOpenString);
+        },
+
+        _clickedControlLabel: function(event) {
+            var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded");
+            if (isOpenString === "true") {
+                this._toggleDropdown(isOpenString);
+            }
         },
 
         _buttonKeyDown: function(event) {
@@ -477,15 +500,11 @@ define([
             this._selectNode.dispatchEvent(newEvent);
         },
 
-        _unsubscribe: function () {
-          if (this._handles) {
-              dojoArray.forEach(this._handles, dojoLang.hitch(this,function (handle) {
-                  mx.data.unsubscribe(handle); 
-                  //this._unsubscribe(handle);
-              }));
-              this._handles = [];
-          }
+        _retrieveInputWidth: function(node) {
+            return dojoAttr.get(node,"class");
+        },
 
+        _unsubscribe: function () {
           if ( this._eventHandles) {
               dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
                   this.disconnect(eventHandle);
@@ -499,18 +518,20 @@ define([
         // Reset subscriptions.
         _resetSubscriptions: function () {
             logger.debug(this.id + "._resetSubscriptions");
-            // Release handles on previous object, if any.
+            // get rid of all events on elements
             this._unsubscribe();
+            // Release handles on previous object, if any.
+            this.unsubscribeAll();
 
             // When a mendix object exists create subscribtions.
             if (this._contextObj) {
-                var objectHandle = mx.data.subscribe({
+                this.subscribe({
                     guid: this._contextObj.getGuid(),
-                    callback: dojoLang.hitch(this, function (guid) {
+                    callback: dojoLang.hitch(this, function(guid){
                         this.update(this._contextObj,function(){});
                     })
-                });
-                this._handles = [ objectHandle ];
+
+                })
             }
         }
     });

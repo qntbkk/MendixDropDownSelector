@@ -167,3 +167,11 @@
         .on('keydown.bs.dropdown.data-api', '.dropdown-menu', Dropdown.prototype.keydown)
 
 }(jQuery);
+
+
+/*
+still to develop: on mobile disable stuff
+readonly versions
+if too many items: scrollable menu
+if at bottom of page: scroll menu up
+*/

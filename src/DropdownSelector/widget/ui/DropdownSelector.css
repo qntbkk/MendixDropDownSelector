@@ -26,6 +26,24 @@
     font-style: italic;
 }
 
+.dropdown-selector.col-sm-1 .dropdown-menu,
+.dropdown-selector.col-sm-2 .dropdown-menu,
+.dropdown-selector.col-sm-3 .dropdown-menu,
+.dropdown-selector.col-sm-4 .dropdown-menu,
+.dropdown-selector.col-sm-5 .dropdown-menu,
+.dropdown-selector.col-sm-6 .dropdown-menu,
+.dropdown-selector.col-sm-7 .dropdown-menu,
+.dropdown-selector.col-sm-8 .dropdown-menu,
+.dropdown-selector.col-sm-9 .dropdown-menu,
+.dropdown-selector.col-sm-10 .dropdown-menu,
+.dropdown-selector.col-sm-11 .dropdown-menu,
+.dropdown-selector.col-sm-12 .dropdown-menu {
+    left: 15px;
+    right: 15px;
+    width: auto;
+}
+
+div[class*='dropdown-selector']
 /*
 .dropdown-value-field {
     position: absolute;
