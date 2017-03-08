@@ -23,6 +23,7 @@ define([
 
     "mxui/dom",
     "dojo/dom",
+    "dojo/sniff",
     "dojo/query",
     "dojo/NodeList-traverse",
     "dojo/dom-prop",
@@ -37,9 +38,8 @@ define([
     "dojo/html",
     "dojo/_base/event",
     "dojo/on",
-
     "dojo/text!DropdownSelector/widget/template/DropdownSelector.html"
-], function (declare, _WidgetBase, _TemplatedMixin, dom, dojoDom, dojoQuery, dojoTraverse, dojoProp, dojoGeometry, dojoClass, dojoStyle, dojoAttr, dojoConstruct, dojoArray, dojoLang, dojoText, dojoHtml, dojoEvent, dojoOn, widgetTemplate) {
+], function (declare, _WidgetBase, _TemplatedMixin, dom, dojoDom, dojoSniff, dojoQuery, dojoTraverse, dojoProp, dojoGeometry, dojoClass, dojoStyle, dojoAttr, dojoConstruct, dojoArray, dojoLang, dojoText, dojoHtml, dojoEvent, dojoOn, widgetTemplate) {
     "use strict";
 
     // Declare widget's prototype.
@@ -52,13 +52,14 @@ define([
         // Parameters configured in the Modeler.
         placeholderText: "",
         targetName: "",
-        mfOnChange: "",
         renderingMode: null,
+        disableOnDevice: null,
         useFixedPositioning: null,
         disableDropUp: null,
         disableResizing: null,
 
         // Internal variables. Non-primitives created in the prototype are shared between all widget instances.
+        _disableFullRender: null,
         _eventHandles: null,
         _contextObj: null,
         _targetNameNode: null,
@@ -75,8 +76,8 @@ define([
         _dropUp:null,
         _menuHeight:null,
         _windowScrollListener:null,
-        _scrollContainerListener:null,
-        _scrollContainerObject:null,
+        _scrollListener:null,
+        _fixedTop:null,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function () {
@@ -88,21 +89,39 @@ define([
             this._controlLabelUsed = true;
             this._horizontalForm = false;
             this._dropUp = false;
+            this._disableFullRender = false;
         },
 
         // dijit._WidgetBase.postCreate is called after constructing the widget. Implement to do extra setup work.
         postCreate: function () {
             logger.debug(this.id + ".postCreate");
             this.targetName = ".mx-name-" + this.targetName;
+
+            // if disable on device is active we need to detect the device and set the properties
+            if (this.disableOnDevice) {
+                if (dojoClass.contains(document.body, "profile-tablet") || dojoClass.contains(document.body, "profile-phone")) {
+                    this._disableFullRender = true;
+                } else {
+                     if (dojoSniff("ios") || dojoSniff("android") || dojoSniff("bb") || dojoSniff("windowsphone") || dojoSniff("mobile")) {
+                        this._disableFullRender = true;
+                    }
+                }
+                
+                // apparently we're on mobile and need to disable any ui changing mode. best way is to set the mode.
+                if (this._disableFullRender) {
+                    if (this.renderingMode === "full") {
+                        this.renderingMode = "default";
+                    }
+                }
+            }
         },
 
         // mxui.widget._WidgetBase.update is called when context is changed or initialized. Implement to re-render and / or fetch data.
         update: function (obj, callback) {
-            console.log("updating widget");
             logger.debug(this.id + ".update");
             this._contextObj = obj;
 
-            // find all nodes TODO: cleanup
+            // find all nodes
             this._targetNameNode = dojoQuery(this.targetName);
             this._targetNameNode = this._targetNameNode[0];
             this._formGroupNode = this._targetNameNode;
@@ -163,7 +182,6 @@ define([
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
         enable: function () {
-            console.log("want to enable editing");
             logger.debug(this.id + ".enable");
             switch(this.renderingMode){
                 case "full":
@@ -181,7 +199,6 @@ define([
 
         // mxui.widget._WidgetBase.enable is called when the widget should disable editing. Implement to disable editing if widget is input widget.
         disable: function () {
-            console.log("want to disable editing");
             logger.debug(this.id + ".disable");
             switch(this.renderingMode) {
                 case "full":
@@ -218,6 +235,8 @@ define([
 
          // Rerender the interface.
         _updateRendering: function (callback) {
+            logger.debug(this.id + "._updateRendering");
+
             switch(this.renderingMode) {
                 case "full":
                     // move the custom widget dom
@@ -227,7 +246,6 @@ define([
                     if (this._newOptionDomArray && this._newOptionDomArray.length > 0 ) {
                         dojoArray.forEach(this._newOptionDomArray,dojoLang.hitch(this,function(optionDom) {
                             dojoConstruct.destroy(optionDom);
-                            // kan hier ook weggooien.
                         }));
                         this._newOptionDomArray = [];
                     }
@@ -270,8 +288,6 @@ define([
                     }
                     break;
             }
-            
-            logger.debug(this.id + "._updateRendering");
 
             this._setupEvents(callback);  
         },
@@ -318,9 +334,9 @@ define([
                         this._eventHandles.push(this.connect(link, "keydown", dojoLang.hitch(this,this._optionLinkKeyDown)));
                     }));
 
+                    
                     if (this.useFixedPositioning) {
-                        console.log("Using fixed positioning and adding windowscroll listener")
-                        this._windowScrollListener = window.addEventListener("scroll",dojoLang.hitch(this,this._windowScrolled), true);
+                        this._scrollListener = dojoLang.hitch(this,this._windowScrolled);
                     }
 
                     break;
@@ -332,8 +348,8 @@ define([
                         }))
                     );
 
-                     this._eventHandles.push(
-                         this.connect(this._selectNode, "change", dojoLang.hitch(this, function(e){
+                    this._eventHandles.push(
+                        this.connect(this._selectNode, "change", dojoLang.hitch(this, function(e){
                             var newIndex = e.currentTarget.options.selectedIndex;
 
                             if (newIndex > 0) {
@@ -341,16 +357,13 @@ define([
                             } else {
                                 dojoClass.remove(this._selectNode, "option-selected");
                             }
-
-                            console.log("changed the bitch to " + newIndex);
                         }))
-                     );
+                    );
                     break;
             }
             
             // The callback, coming from update, needs to be executed, to let the page know it finished rendering
             mendix.lang.nullExec(callback);
-            console.log("just did the callback, so finished to loop");
         },
 
         _createListItem: function(option, listNode) {
@@ -391,7 +404,6 @@ define([
         },
 
         _clickedDropdown: function(event) {
-            console.log("clicked the dropdown");
             var isOpenString = dojoAttr.get(event.currentTarget,"aria-expanded");
             // toggle the menu
             this._toggleDropdown(isOpenString);
@@ -457,8 +469,37 @@ define([
                     this._toggleDropdown("true");
                     break;
                 default:
+                    var pressedLetter = String.fromCharCode(keyCode);
+                    if (pressedLetter !== "") {
+                        pressedLetter = pressedLetter.toLowerCase();
+                        var result = this._findOptionHit(pressedLetter);
+                        if (result !== -1) {
+                            this._setFocusOnListItem(result);
+                        }
+                    }
                     break;
             }
+        },
+
+        _findOptionHit: function(letter) {
+            var resultIndex = -1,
+                foundIndex,
+                textValue,
+                option,
+                i;
+
+
+            for (i = 1; i < this._optionArray.length; i++) {
+                option = this._optionArray[i];
+                textValue = option.text;
+                textValue = textValue.toLowerCase();
+                foundIndex = textValue.indexOf(letter);
+                resultIndex = option.index;
+                if (foundIndex === 0) {
+                    break;
+                } 
+            } 
+            return resultIndex;
         },
 
         _setFocusOnListItem: function(index) {
@@ -494,6 +535,11 @@ define([
                     dojoAttr.set(this.dropdownSelectorMenuNode,"style","");
                     // set back to original location for calculation reusage
                     dojoConstruct.place(this.dropdownSelectorMenuNode,this.domNode,"last"); 
+                    // get rid of the scrollevent listener if (this.useFixedPositioning) {
+                    if (this._windowScrollListener !== null){
+                            this._windowScrollListener = window.removeEventListener("scroll", this._scrollListener, true);
+                            this._windowScrollListener = null; 
+                    }
                 }
             }
         },
@@ -511,18 +557,15 @@ define([
                     this._dropUp = true;
                     dojoClass.add(this.domNode,"dropup");
 
-                    //menuMaxHeight = maxHeight - margin - yCoord;
                     menuMaxHeight = buttonPosition.top - margin;
                 } else {
                     this._dropUp = false;
                     dojoClass.remove(this.domNode,"dropup");
 
-                    //menuMaxHeight = buttonPosition.bottom - margin - this.selectDropdownButton.offsetHeight;
                     menuMaxHeight = maxHeight - margin - yCoord - this.selectDropdownButton.offsetHeight;
 
                 }
             } else {
-                //menuMaxHeight = buttonPosition.bottom - margin - this.selectDropdownButton.offsetHeight;
                 menuMaxHeight = maxHeight - margin - yCoord - this.selectDropdownButton.offsetHeight;
             }
 
@@ -541,7 +584,6 @@ define([
                 } else {
                     newTop = buttonPosition.top + this.selectDropdownButton.offsetHeight;
                 }
-                //this._determineFixedPositioningTEST(buttonPosition, menuMaxHeight);
                 this._determineFixedPositioning(buttonPosition, newTop);      
             }
         },
@@ -550,6 +592,7 @@ define([
             var width = this.dropdownSelectorMenuNode.offsetWidth;
             var height = this.dropdownSelectorMenuNode.offsetHeight;
             var left = windowBox.left;
+            this._fixedTop = newTop;
             var top = newTop.toString() + "px";
             width = width.toString() + "px";
             height = height.toString() + "px";
@@ -563,72 +606,18 @@ define([
             dojoStyle.set(this.dropdownSelectorMenuNode,"margin",0);
             var pageDom = dojoQuery('div.mx-page')[0];
             dojoConstruct.place(this.dropdownSelectorMenuNode,pageDom,"last");
-            console.log(pageDom);
 
-
-            // set event listener 
-            if (!this._scrollContainerListener) { 
-                console.log("trying to set a scrollcontainerlistener");
-                this._scrollContainerObject = dojoTraverse(this.domNode).parents('.mx-scrollcontainer')[0];
-                var temp = this._scrollContainerObject;
-                console.log(this._scrollContainerObject);
-                this._scrollContainerListener = this._scrollContainerObject.addEventListener("scroll",dojoLang.hitch(this,this._windowScrolled));
+            // set event listener
+            if (this._windowScrollListener === null) {
+                // scrollListener is set in the setup events bit
+                this._windowScrollListener = window.addEventListener("scroll", this._scrollListener, true); 
             }
         },
 
-        _determineFixedPositioningTEST: function(windowBox,menuMaxHeight) {
-            var margin = 15;
-            var fixNonResizeHeightTop = false;
-            var fixNonResizeHeightBottom = false;
-
-            if (windowBox === null || windowBox === undefined) {
-                console.log("just had null as windowbox creating new one");
-                windowBox = this.selectDropdownButton.getBoundingClientRect();
-            }
-            var maxHeight = window.innerHeight; 
-            if (menuMaxHeight === null || menuMaxHeight === undefined) {
-                if (this._dropUp) {
-                    menuMaxHeight = windowBox.top - margin; 
-                } else {
-                    menuMaxHeight = maxHeight - margin - windowBox.top - this.selectDropdownButton.offsetHeight;
-                }
-            }
-
-            var left = windowBox.left;
-            var right = window.innerWidth - (windowBox.left + this.selectDropdownButton.offsetWidth);
-            var top = windowBox.top + this.selectDropdownButton.offsetHeight;
-            var bottom = maxHeight - top - this._menuHeight;
-
-            this._dropUp = true;
-
-            if (this._dropUp) {
-                bottom = maxHeight - windowBox.top;
-                top = windowBox.top - this._menuHeight;
-                if (this._menuHeight > menuMaxHeight) {
-                    top = windowBox.top - menuMaxHeight;
-                }
-            } else {
-                if (this._menuHeight > menuMaxHeight) {
-                    bottom = maxHeight - top - menuMaxHeight;
-                }
-            }
-
-            console.log("testing bottom: " + bottom + "   / top: " + windowBox.top);
-
-            // set the styles
-            left = left.toString() + "px";
-            right = right.toString() + "px";
-            top = top.toString() + "px";
-            bottom = bottom.toString() + "px";
-
-            dojoStyle.set(this.dropdownSelectorMenuNode,"position", "fixed");
-            dojoStyle.set(this.dropdownSelectorMenuNode,"float", "none");
-            dojoStyle.set(this.dropdownSelectorMenuNode,"width", "auto");
-            dojoStyle.set(this.dropdownSelectorMenuNode,"left", left);
-            dojoStyle.set(this.dropdownSelectorMenuNode,"right", right);
-            dojoStyle.set(this.dropdownSelectorMenuNode,"top", top);
-            dojoStyle.set(this.dropdownSelectorMenuNode,"bottom", bottom);
-
+        _updatedFixedHeight: function(delta) {
+            var newTop = this._fixedTop - delta;
+            newTop = newTop.toString() + "px";
+            dojoStyle.set(this.dropdownSelectorMenuNode,"top",newTop);
         },
 
         _listItemClicked: function(event) {
@@ -664,10 +653,10 @@ define([
             // set the button text and style
             this._setSelectButton();
 
-            // adjust original select element NOTE TODO: if same value don't trigger event.
+            // adjust original select element
             this._selectNode.options.selectedIndex = this._selectedIndex;
             var newEvent = new Event('change');
-            this._selectNode.dispatchEvent(newEvent);
+            this._selectNode.dispatchEvent(newEvent); 
         },
 
         _retrieveInputWidth: function(node) {
@@ -675,7 +664,12 @@ define([
         },
 
         _windowScrolled:function(event) {
-            console.log("scrolled: " + event);
+            var scrollContainer = event.target;
+            // only act if the scrollable region contains the target;
+            if (event.target.contains(this.domNode)) {
+                var newScrollDelta = event.target.scrollTop; 
+                this._updatedFixedHeight (newScrollDelta);
+            }            
         },
 
         _unsubscribe: function () {
@@ -683,19 +677,16 @@ define([
               dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
                   this.disconnect(eventHandle);
               }));
-               this._eventHandles = [];
+                this._eventHandles = [];
           }
 
           if (this.useFixedPositioning) {
-              if (this._windowScrollListener){
-                    this._windowScrollListener = window.removeEventListener("scroll",dojoLang.hitch(this,this._windowScrolled));
-              }
-              if (this._scrollContainerListener) {
-                 this._scrollContainerListener = this._scrollContainerObject.removeEventListener("scroll",dojoLang.hitch(this,this._windowScrolled));
+              if (this._windowScrollListener !== null){
+                    this._windowScrollListener = window.removeEventListener("scroll", this._scrollListener, true);
+                    this._windowScrollListener = null;
               }
             }  
 
-          /* type hier custom events bij */
         },
 
         // Reset subscriptions.

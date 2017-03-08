@@ -3,7 +3,7 @@
     <name>DropdownSelector</name>
     <description>Enhancement of the standard html form dropdown element for usability and UX purposes. Adds a placeholder functionality as well as the creation of a stylable version of the dropdown and it's elements.</description>
 
-    <icon />
+    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAMNJREFUeNpilJWV/s8AAY2PHz9tAPL3A9kOUDFHKL0fSh8AqnEEqmkAsutBAkwMFAJGqGkMINtJ0QjTRzkA+RnqbxA7gAj1Acj6mKABBgu09UDBBDyaQXLroVywPmyBOB+bIVCx+ejiTNCogkVXIjZD0DQnIkWxIwuyacCYWABUzABVPB/KZkDWDFKDHo3/oZoZCTgXRTNMH9aEBFWYiEszMgB54QAuQ4C2fICyN2BRcoAq6YjipMwCy1WgEB+Q3AgQYADuuVZ7IpsidwAAAABJRU5ErkJggg==</icon>
 
     <properties>
         <property key="targetName" type="string" required="true" defaultValue="">
@@ -44,12 +44,6 @@
             <caption>Use default on device</caption>
             <category>Behaviour</category>
             <description>Keep the traditional select element when using tablet or mobile</description>
-        </property>
-        <property key="mfOnChange" type="microflow" required="false" defaultValue="">
-            <caption>On Change Microflow</caption>
-            <category>Behavior</category>
-            <description>The microflow to execute on change.</description>
-            <returnType type="Boolean" />
         </property>
     </properties>
 </widget>

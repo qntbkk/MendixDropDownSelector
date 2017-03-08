@@ -45,47 +45,24 @@
     width: auto;
 }
 
-div[class*='dropdown-selector']
-/*
-.dropdown-value-field {
-    position: absolute;
-    width:100%;
-    bottom:0;
-    left:0;
-}
-
-.dropdown-selector .glyphicon {
-    position: absolute;
-    right: 16px;
-    bottom: 0;
-    top: auto;
-}
-
-.dropdown-selector-options {
-
-}
-
-.relative {
-    position: relative;
-}*/
-
-/* temp for testing */
-select,
-select.form-control {
+.extended-dropdown-selector select,
+.extended-dropdown-selector select.form-control {
     color: #CCC;
-    height: 33px;
+    height: 34px;
 }
 
-select option,
-.form-control option {
+.extended-dropdown-selector select.option-selected,
+.extended-dropdown-selector select.form-control.option-selected {
     color: #000;
 }
 
-select option:first-child,
-.form-control option:first-child {
-    color: #CCC;
+.extended-dropdown-selector select option,
+.extended-dropdown-selector select.form-control option {
+    color: #000;
 }
 
-select.option-selected {
-    color: #000;
+
+.extended-dropdown-selector select option:first-child,
+.extended-dropdown-selector select.form-control option:first-child {
+    color: #CCC;
 }
