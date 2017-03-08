@@ -6,6 +6,11 @@
     <icon />
 
     <properties>
+        <property key="targetName" type="string" required="true" defaultValue="">
+            <caption>Target dropdown</caption>
+            <category>General</category>
+            <description>Enter the name of the dropdown that needs to be enhanced.</description>
+        </property>
         <property key="placeholderText" type="string" required="false" defaultValue="">
             <caption>Placeholder</caption>
             <category>Appearance</category>
@@ -20,15 +25,25 @@
                 <enumerationValue key="full">replace select field and dropdown menu</enumerationValue>
             </enumerationValues>
         </property>
+        <property key="useFixedPositioning" type="boolean" defaultValue="false" required="true">
+            <caption>Fix menu positioning</caption>
+            <category>Behaviour</category>
+            <description>Uses fixed positioning for the dropdown menu. Only use it for when encountering scrollcontainer layout issues for performance wise this is a heavy operation</description>
+        </property>
+        <property key="disableDropUp" type="boolean" defaultValue="false" required="true">
+            <caption>Prevent drop up</caption>
+            <category>Behaviour</category>
+            <description>For Full Rendering Mode, the widget automatically determines to drop down or up. This allows for always dropping down.</description>
+        </property>
+        <property key="disableResizing" type="boolean" defaultValue="false" required="true">
+            <caption>Prevent resize</caption>
+            <category>Behaviour</category>
+            <description>Prevent the dropdown menu's ability to resize to fit the available space in the screen. Note: doens't work with fixed positioning.</description>
+        </property>
         <property key="disableOnDevice" type="boolean" defaultValue="true" required="true">
             <caption>Use default on device</caption>
-            <category>Appearance</category>
+            <category>Behaviour</category>
             <description>Keep the traditional select element when using tablet or mobile</description>
-        </property>
-        <property key="targetName" type="string" required="true" defaultValue="">
-            <caption>Target dropdown</caption>
-            <category>General</category>
-            <description>Enter the name of the dropdown that needs to be enhanced.</description>
         </property>
         <property key="mfOnChange" type="microflow" required="false" defaultValue="">
             <caption>On Change Microflow</caption>

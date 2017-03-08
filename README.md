@@ -1,3 +1,6 @@
+NOOT: widget doesn't work well with label-less input fields due to Mendix's. If used without label but with enable disable editability: make sure to use an empty label
+
+
 # App Store Widget Boilerplate
 
 This boilerplate gives you all you need to start a new custom widget for Mendix

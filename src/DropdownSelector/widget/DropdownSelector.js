@@ -54,6 +54,9 @@ define([
         targetName: "",
         mfOnChange: "",
         renderingMode: null,
+        useFixedPositioning: null,
+        disableDropUp: null,
+        disableResizing: null,
 
         // Internal variables. Non-primitives created in the prototype are shared between all widget instances.
         _eventHandles: null,
@@ -69,6 +72,11 @@ define([
         _controlLabelUsed: null,
         _controlLabelNode: null,
         _horizontalForm: null,
+        _dropUp:null,
+        _menuHeight:null,
+        _windowScrollListener:null,
+        _scrollContainerListener:null,
+        _scrollContainerObject:null,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function () {
@@ -79,6 +87,7 @@ define([
             this._newOptionDomArray = [];
             this._controlLabelUsed = true;
             this._horizontalForm = false;
+            this._dropUp = false;
         },
 
         // dijit._WidgetBase.postCreate is called after constructing the widget. Implement to do extra setup work.
@@ -97,8 +106,8 @@ define([
             this._targetNameNode = dojoQuery(this.targetName);
             this._targetNameNode = this._targetNameNode[0];
             this._formGroupNode = this._targetNameNode;
-            if (this._targetNameNode) {
-                this._selectNode = dojoQuery('select',this._targetNameNode)[0];
+            if (this._formGroupNode) {
+                this._selectNode = dojoQuery('select',this._formGroupNode)[0];
                 // locate control - label
                 var labels = dojoQuery(".control-label",this._formGroupNode);
                 if (labels.length === 0) {                
@@ -117,6 +126,8 @@ define([
                 }
             } else {
                 logger.debug("there was no Mendix widget found with the specified target name");
+                // destroy the template since something went wrong
+                dojoConstruct.destroy(this.domNode);
                 callback();
                 return;
             }
@@ -141,6 +152,8 @@ define([
                 }));
             } else {
                 logger.debug("there was no select element found withing the specified Mendix widget");
+                // destroy the template since something went wrong
+                dojoConstruct.destroy(this.domNode);
                 callback();
                 return;
             }
@@ -224,6 +237,11 @@ define([
                         this._createListItem(option, this.dropdownSelectorMenuNode); 
                     }));
 
+                    // get the original menu height
+                    dojoStyle.set(this.dropdownSelectorMenuNode,"display","block");
+                    this._menuHeight = this.dropdownSelectorMenuNode.offsetHeight;
+                    dojoStyle.set(this.dropdownSelectorMenuNode,"display","");
+
                     // set the buttontext and styling
                     dojoAttr.set(this.selectValueFieldNode,'data-placeholder', this.placeholderText);
                     this._setSelectButton();
@@ -236,6 +254,9 @@ define([
                 default:
                     // destroy the template since we won't be using it
                     dojoConstruct.destroy(this.domNode);
+
+                    // add a classname on the formgroup
+                    dojoClass.add(this._formGroupNode,"extended-dropdown-selector");
 
                     // create the placeholder functionality in original option
                     if (this._optionDomArray[0]){
@@ -296,6 +317,12 @@ define([
                         this._eventHandles.push(this.connect(link, "click", dojoLang.hitch(this, this._listItemClicked)));
                         this._eventHandles.push(this.connect(link, "keydown", dojoLang.hitch(this,this._optionLinkKeyDown)));
                     }));
+
+                    if (this.useFixedPositioning) {
+                        console.log("Using fixed positioning and adding windowscroll listener")
+                        this._windowScrollListener = window.addEventListener("scroll",dojoLang.hitch(this,this._windowScrolled), true);
+                    }
+
                     break;
                 case "default":
                 default:
@@ -453,12 +480,155 @@ define([
                 // closed menu - so open it up
                 dojoClass.add(this.domNode, "open");
                 dojoAttr.set(this.selectDropdownButton,"aria-expanded","true");
+                if (!this.disableResizing || !this.disableDropUp || this.useFixedPositioning) {
+                    this._defineDropMenu();
+                }
                 this._setFocusOnListItem(this._selectedIndex);
+                
             } else {
                 // open menu - so close it
                 dojoClass.remove(this.domNode, "open");
                 dojoAttr.set(this.selectDropdownButton,"aria-expanded","false");
+
+                if (this.useFixedPositioning) {
+                    dojoAttr.set(this.dropdownSelectorMenuNode,"style","");
+                    // set back to original location for calculation reusage
+                    dojoConstruct.place(this.dropdownSelectorMenuNode,this.domNode,"last"); 
+                }
             }
+        },
+
+        _defineDropMenu: function() {
+            var maxHeight = window.innerHeight;
+            var buttonPosition = this.selectDropdownButton.getBoundingClientRect();
+            var yCoord = buttonPosition.top;
+            var margin = 15;
+            var menuMaxHeight;
+            var newTop;
+
+            if (!this.disableDropUp) {
+                if ((yCoord/maxHeight) > 0.65) {
+                    this._dropUp = true;
+                    dojoClass.add(this.domNode,"dropup");
+
+                    //menuMaxHeight = maxHeight - margin - yCoord;
+                    menuMaxHeight = buttonPosition.top - margin;
+                } else {
+                    this._dropUp = false;
+                    dojoClass.remove(this.domNode,"dropup");
+
+                    //menuMaxHeight = buttonPosition.bottom - margin - this.selectDropdownButton.offsetHeight;
+                    menuMaxHeight = maxHeight - margin - yCoord - this.selectDropdownButton.offsetHeight;
+
+                }
+            } else {
+                //menuMaxHeight = buttonPosition.bottom - margin - this.selectDropdownButton.offsetHeight;
+                menuMaxHeight = maxHeight - margin - yCoord - this.selectDropdownButton.offsetHeight;
+            }
+
+            if (!this.disableResizing) {
+                if (menuMaxHeight < this._menuHeight) {
+                    var newHeight = menuMaxHeight.toString() + "px";
+                    dojoStyle.set(this.dropdownSelectorMenuNode, "max-height", newHeight);
+                } else {
+                    dojoStyle.set(this.dropdownSelectorMenuNode, "max-height", "");
+                }
+            }
+            if (this.useFixedPositioning) {
+                
+                if (this._dropUp) {
+                    newTop = buttonPosition.top - this.dropdownSelectorMenuNode.offsetHeight;
+                } else {
+                    newTop = buttonPosition.top + this.selectDropdownButton.offsetHeight;
+                }
+                //this._determineFixedPositioningTEST(buttonPosition, menuMaxHeight);
+                this._determineFixedPositioning(buttonPosition, newTop);      
+            }
+        },
+
+        _determineFixedPositioning: function(windowBox, newTop) {
+            var width = this.dropdownSelectorMenuNode.offsetWidth;
+            var height = this.dropdownSelectorMenuNode.offsetHeight;
+            var left = windowBox.left;
+            var top = newTop.toString() + "px";
+            width = width.toString() + "px";
+            height = height.toString() + "px";
+            left = left.toString() + "px";
+            dojoStyle.set(this.dropdownSelectorMenuNode,"overflow","auto");
+            dojoStyle.set(this.dropdownSelectorMenuNode,"width",width); 
+            dojoStyle.set(this.dropdownSelectorMenuNode,"height",height);
+            dojoStyle.set(this.dropdownSelectorMenuNode,"left",left);
+            dojoStyle.set(this.dropdownSelectorMenuNode,"top",top); 
+            dojoStyle.set(this.dropdownSelectorMenuNode,"display","block");
+            dojoStyle.set(this.dropdownSelectorMenuNode,"margin",0);
+            var pageDom = dojoQuery('div.mx-page')[0];
+            dojoConstruct.place(this.dropdownSelectorMenuNode,pageDom,"last");
+            console.log(pageDom);
+
+
+            // set event listener 
+            if (!this._scrollContainerListener) { 
+                console.log("trying to set a scrollcontainerlistener");
+                this._scrollContainerObject = dojoTraverse(this.domNode).parents('.mx-scrollcontainer')[0];
+                var temp = this._scrollContainerObject;
+                console.log(this._scrollContainerObject);
+                this._scrollContainerListener = this._scrollContainerObject.addEventListener("scroll",dojoLang.hitch(this,this._windowScrolled));
+            }
+        },
+
+        _determineFixedPositioningTEST: function(windowBox,menuMaxHeight) {
+            var margin = 15;
+            var fixNonResizeHeightTop = false;
+            var fixNonResizeHeightBottom = false;
+
+            if (windowBox === null || windowBox === undefined) {
+                console.log("just had null as windowbox creating new one");
+                windowBox = this.selectDropdownButton.getBoundingClientRect();
+            }
+            var maxHeight = window.innerHeight; 
+            if (menuMaxHeight === null || menuMaxHeight === undefined) {
+                if (this._dropUp) {
+                    menuMaxHeight = windowBox.top - margin; 
+                } else {
+                    menuMaxHeight = maxHeight - margin - windowBox.top - this.selectDropdownButton.offsetHeight;
+                }
+            }
+
+            var left = windowBox.left;
+            var right = window.innerWidth - (windowBox.left + this.selectDropdownButton.offsetWidth);
+            var top = windowBox.top + this.selectDropdownButton.offsetHeight;
+            var bottom = maxHeight - top - this._menuHeight;
+
+            this._dropUp = true;
+
+            if (this._dropUp) {
+                bottom = maxHeight - windowBox.top;
+                top = windowBox.top - this._menuHeight;
+                if (this._menuHeight > menuMaxHeight) {
+                    top = windowBox.top - menuMaxHeight;
+                }
+            } else {
+                if (this._menuHeight > menuMaxHeight) {
+                    bottom = maxHeight - top - menuMaxHeight;
+                }
+            }
+
+            console.log("testing bottom: " + bottom + "   / top: " + windowBox.top);
+
+            // set the styles
+            left = left.toString() + "px";
+            right = right.toString() + "px";
+            top = top.toString() + "px";
+            bottom = bottom.toString() + "px";
+
+            dojoStyle.set(this.dropdownSelectorMenuNode,"position", "fixed");
+            dojoStyle.set(this.dropdownSelectorMenuNode,"float", "none");
+            dojoStyle.set(this.dropdownSelectorMenuNode,"width", "auto");
+            dojoStyle.set(this.dropdownSelectorMenuNode,"left", left);
+            dojoStyle.set(this.dropdownSelectorMenuNode,"right", right);
+            dojoStyle.set(this.dropdownSelectorMenuNode,"top", top);
+            dojoStyle.set(this.dropdownSelectorMenuNode,"bottom", bottom);
+
         },
 
         _listItemClicked: function(event) {
@@ -504,6 +674,10 @@ define([
             return dojoAttr.get(node,"class");
         },
 
+        _windowScrolled:function(event) {
+            console.log("scrolled: " + event);
+        },
+
         _unsubscribe: function () {
           if ( this._eventHandles) {
               dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
@@ -511,6 +685,15 @@ define([
               }));
                this._eventHandles = [];
           }
+
+          if (this.useFixedPositioning) {
+              if (this._windowScrollListener){
+                    this._windowScrollListener = window.removeEventListener("scroll",dojoLang.hitch(this,this._windowScrolled));
+              }
+              if (this._scrollContainerListener) {
+                 this._scrollContainerListener = this._scrollContainerObject.removeEventListener("scroll",dojoLang.hitch(this,this._windowScrolled));
+              }
+            }  
 
           /* type hier custom events bij */
         },

@@ -10,7 +10,7 @@
     float: right;
 }
 
-
+.dropdown-toggle .placeholder,
 .dropdown-selector .dropdown-toggle .placeholder {
     color: #CCC;
     font-style: italic;
@@ -19,6 +19,8 @@
 .dropdown-selector .dropdown-menu {
     width: 100%;
     margin-top:0;
+    overflow: auto;
+    min-height: calc((3em * 1.3) + 10px);
 }
 
 .dropdown-selector .dropdown-menu li:first-child a {
