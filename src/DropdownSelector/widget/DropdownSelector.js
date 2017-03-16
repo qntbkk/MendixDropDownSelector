@@ -78,6 +78,8 @@ define([
         _windowScrollListener:null,
         _scrollListener:null,
         _fixedTop:null,
+        _mutationObserver:null,
+        _fallbackTimer:null,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function () {
@@ -158,26 +160,47 @@ define([
                     dojoClass.add(this.domNode, horizontalInputWidth);
                 }
 
-                // create an array with all the possible options
-                this._selectedIndex = this._selectNode.options.selectedIndex;
+                // prepare to create an array with all the possible options
                 this._optionDomArray = dojoQuery('option',this._selectNode);
-                this._optionArray = [];
-                dojoArray.forEach(this._optionDomArray,dojoLang.hitch(this, function(option){
-                    var optionElement = {index: option.index, value: option.value, text: option.text};
-                    if (optionElement.text == "") {
-                        optionElement.text = this.placeholderText;
-                    }
-                    this._optionArray.push(optionElement);
-                }));
+                this._selectedIndex = this._selectNode.options.selectedIndex;
+                // check if options are present yet
+                if (this._optionDomArray.length > 0) {
+                    console.log("found beautiful option elements");
+                    this._selectedIndex = this._selectNode.options.selectedIndex;
+                    this._dataUpdate(callback());
+                } else {
+                    // no options yet so we'll need a timer of sorts
+                    console.log("nothing found: build new stuff");
+                    
+                    this._resetSubscriptions();
+                    this._updateRendering(callback);
+
+                    if(dojoSniff("ie") & dojoSniff("ie") <= 10) {
+                        // fallback for ie 10 browsers and below that
+                        this._fallbackTimer = window.setInterval(dojoLang.hitch(this,this._fallbackTriggered), 200);
+                    } else {
+                        console.log("going to build mutation observer here");
+                        this._mutationObserver = new MutationObserver(dojoLang.hitch(this,this._mutationDomTriggered));
+                        var observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
+                        this._mutationObserver.observe(this._selectNode, observerConfig);
+                    }        
+                }
+
             } else {
                 logger.debug("there was no select element found withing the specified Mendix widget");
                 // destroy the template since something went wrong
                 dojoConstruct.destroy(this.domNode);
                 callback();
                 return;
-            }
-            this._resetSubscriptions();
-            this._updateRendering(callback);
+            }           
+        },
+
+        _mutationDomTriggered: function(mutations) {
+            mutations.forEach(function(mutation) {
+                console.log(mutation.type);
+
+                // net we have added nodes and removednodes with 
+            })
         },
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
@@ -189,7 +212,7 @@ define([
                     // add and move the button once more
                     this.domNode.appendChild(this.selectDropdownButton);
                     dojoConstruct.place(this.selectDropdownButton,this.domNode,0);
-                    dojoStyle.set(this.domNode,"display","");
+                    dojoStyle.set(this.domNode,"display",""); 
                     break;
                 case "default":
                 default:
@@ -233,7 +256,35 @@ define([
             // Clean up listeners, helper objects, etc. There is no need to remove listeners added with this.connect / this.subscribe / this.own.
         },
 
-         // Rerender the interface.
+        // method that invokes updateRendering after data has been collected / is present
+        _dataUpdate: function(callback) {
+            this._optionArray = [];
+            dojoArray.forEach(this._optionDomArray,dojoLang.hitch(this, function(option){
+                var optionElement = {index: option.index, value: option.value, text: option.text};
+                if (optionElement.text == "") {
+                    optionElement.text = this.placeholderText;
+                }
+                this._optionArray.push(optionElement);
+            }));
+
+            this._resetSubscriptions();
+            this._updateRendering(callback);
+        },
+
+        // IE fallback method / polyfill for mutation observer
+        _fallbackTriggered: function() {
+            //var newDomArray = dojoQuery('option', this._selectNode); use for comparing new dom
+            this._optionDomArray = dojoQuery('option',this._selectNode);
+            console.log("alarm alarm ");
+            if (this._optionDomArray.length > 0) {
+                this._selectedIndex = this._selectNode.options.selectedIndex;
+                // TODO check below: for keep updating, let the timer running - write logic though for comparing optionDomArray contents.
+                // window.clearInterval(this._fallbackTimer);
+                this._dataUpdate(function(){});
+            }
+        },
+
+         // Rerender the interface. Note, this is a full render
         _updateRendering: function (callback) {
             logger.debug(this.id + "._updateRendering");
 
@@ -306,37 +357,40 @@ define([
 
              switch(this.renderingMode) {
                 case "full":
-                    // set event to the button
-                    this._eventHandles.push(this.connect(this.selectDropdownButton, "click", dojoLang.hitch(this,this._clickedDropdown)));
-                    this._eventHandles.push(this.connect(this.selectDropdownButton, "keydown", dojoLang.hitch(this,this._buttonKeyDown)));
+                    // if selectedIndex is -1, it means that no actual options are present and data is loading: no events are required
+                    if (this._selectedIndex !== -1) {
+                        // set event to the button
+                        this._eventHandles.push(this.connect(this.selectDropdownButton, "click", dojoLang.hitch(this,this._clickedDropdown)));
+                        this._eventHandles.push(this.connect(this.selectDropdownButton, "keydown", dojoLang.hitch(this,this._buttonKeyDown)));
 
-                    // if label is present we need to make sure that clicking on it will close it as well
-                    if (this._controlLabelUsed){
-                        this._eventHandles.push(this.connect(this._controlLabelNode, "click", dojoLang.hitch(this,this._clickedControlLabel)));
-                    }
-
-                    // set event to window for automatically closing the
-                    this._eventHandles.push(this.connect(document, "click", dojoLang.hitch(this,function(event){
-                        // if a widget external click is made: close the menu if open. first check though if the window click is not bubbled from this instance
-                        //if (!this._selectNodeContainer.contains(event.target)){
-                        if (!this._formGroupNode.contains(event.target)) {
-                            var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded")
-                            if (isOpenString == "true") {
-                                this._toggleDropdown(isOpenString);
-                            }
+                        // if label is present we need to make sure that clicking on it will close it as well
+                        if (this._controlLabelUsed){
+                            this._eventHandles.push(this.connect(this._controlLabelNode, "click", dojoLang.hitch(this,this._clickedControlLabel)));
                         }
-                    })));
 
-                    // set events to the listitems
-                    dojoArray.forEach(this._newOptionDomArray, dojoLang.hitch(this, function(listItem){
-                        var link = dojoTraverse(listItem).children()[0];
-                        this._eventHandles.push(this.connect(link, "click", dojoLang.hitch(this, this._listItemClicked)));
-                        this._eventHandles.push(this.connect(link, "keydown", dojoLang.hitch(this,this._optionLinkKeyDown)));
-                    }));
+                        // set event to window for automatically closing the
+                        this._eventHandles.push(this.connect(document, "click", dojoLang.hitch(this,function(event){
+                            // if a widget external click is made: close the menu if open. first check though if the window click is not bubbled from this instance
+                            //if (!this._selectNodeContainer.contains(event.target)){
+                            if (!this._formGroupNode.contains(event.target)) {
+                                var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded")
+                                if (isOpenString == "true") {
+                                    this._toggleDropdown(isOpenString);
+                                }
+                            }
+                        })));
 
-                    
-                    if (this.useFixedPositioning) {
-                        this._scrollListener = dojoLang.hitch(this,this._windowScrolled);
+                        // set events to the listitems
+                        dojoArray.forEach(this._newOptionDomArray, dojoLang.hitch(this, function(listItem){
+                            var link = dojoTraverse(listItem).children()[0];
+                            this._eventHandles.push(this.connect(link, "click", dojoLang.hitch(this, this._listItemClicked)));
+                            this._eventHandles.push(this.connect(link, "keydown", dojoLang.hitch(this,this._optionLinkKeyDown)));
+                        }));
+
+                        
+                        if (this.useFixedPositioning) {
+                            this._scrollListener = dojoLang.hitch(this,this._windowScrolled);
+                        }
                     }
 
                     break;
@@ -391,8 +445,8 @@ define([
         },
 
         _setSelectButton: function() {
-            if (this._selectedIndex == 0) {
-                // no item is selected - placeholder functionality
+           if (this._selectedIndex === 0 || this._selectedIndex === -1) {
+                // no item is selected / or no option elements are yet available - placeholder functionality
                 this.selectValueFieldNode.textContent = dojoAttr.get(this.selectValueFieldNode,'data-placeholder');
                 dojoClass.add(this.selectValueFieldNode,'placeholder');
             } else {
@@ -685,8 +739,14 @@ define([
                     this._windowScrollListener = window.removeEventListener("scroll", this._scrollListener, true);
                     this._windowScrollListener = null;
               }
-            }  
-
+            }
+            if (this._fallbackTimer) {
+                window.clearInterval(this._fallbackTimer);
+                console.log("clearing the timer");
+            }
+            if (this._mutationObserver) {
+                this._mutationObserver.disconnect();
+            }
         },
 
         // Reset subscriptions.
