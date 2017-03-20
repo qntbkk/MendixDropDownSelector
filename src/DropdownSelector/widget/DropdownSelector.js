@@ -121,6 +121,7 @@ define([
         // mxui.widget._WidgetBase.update is called when context is changed or initialized. Implement to re-render and / or fetch data.
         update: function (obj, callback) {
             logger.debug(this.id + ".update");
+            console.log("running update");
             this._contextObj = obj;
 
             // find all nodes
@@ -196,11 +197,22 @@ define([
         },
 
         _mutationDomTriggered: function(mutations) {
-            mutations.forEach(function(mutation) {
-                console.log(mutation.type);
+            console.log("mutationDomTriggered"); 
+            mutations.forEach(dojoLang.hitch(this,function(mutation) {
+               console.log(mutation.type);
 
-                // net we have added nodes and removednodes with 
-            })
+            }))
+
+            this._optionDomArray = dojoQuery('option',this._selectNode);
+            if (this._optionDomArray.length > 0) {
+                this._selectedIndex = this._selectNode.options.selectedIndex;
+                // TODO check below: for keep updating, let the timer running - write logic though for comparing optionDomArray contents.
+                // window.clearInterval(this._fallbackTimer);
+                this._dataUpdate(function(){});
+            } else {
+                logger.debug("mutation triggered on Select element but no option elements found");
+            }
+            console.log("mutations done");
         },
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
@@ -251,9 +263,17 @@ define([
 
         // mxui.widget._WidgetBase.uninitialize is called when the widget is destroyed. Implement to do special tear-down work.
         uninitialize: function () {
-          logger.debug(this.id + ".uninitialize");
-          this._unsubscribe();
+            logger.debug(this.id + ".uninitialize");
+            this._unsubscribe();
             // Clean up listeners, helper objects, etc. There is no need to remove listeners added with this.connect / this.subscribe / this.own.
+            if (this._fallbackTimer) {
+                window.clearInterval(this._fallbackTimer);
+                console.log("clearing the timer");
+            }
+            if (this._mutationObserver) {
+                console.log("disconnection mutation observer");
+                //this._mutationObserver.disconnect();
+            }
         },
 
         // method that invokes updateRendering after data has been collected / is present
@@ -317,7 +337,7 @@ define([
 
                     // hide the original select                         
                     dojoAttr.set(this._selectNode,"tabindex","-1"); 
-                    dojoStyle.set(this._selectNode,"display","none");
+                    // dojoStyle.set(this._selectNode,"display","none"); TODO TURN BACK ON
                     break;
                 case "default":
                 default:
@@ -372,7 +392,7 @@ define([
                         this._eventHandles.push(this.connect(document, "click", dojoLang.hitch(this,function(event){
                             // if a widget external click is made: close the menu if open. first check though if the window click is not bubbled from this instance
                             //if (!this._selectNodeContainer.contains(event.target)){
-                            if (!this._formGroupNode.contains(event.target)) {
+                            if (!this._formGroupNode.contains(event.target)) { 
                                 var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded")
                                 if (isOpenString == "true") {
                                     this._toggleDropdown(isOpenString);
@@ -391,6 +411,31 @@ define([
                         if (this.useFixedPositioning) {
                             this._scrollListener = dojoLang.hitch(this,this._windowScrolled);
                         }
+
+                        // set listenening event to the select element
+                        console.log("setting the selectnode events hoor");
+                        this._selectNode.addEventListener("change", function(event) {
+                            console.log("selectnode changed hoor");
+                        }, true)
+                        this._eventHandles.push(                            
+                            this.connect(this._selectNode, "change", dojoLang.hitch(this, function(e){
+                                var newIndex = e.currentTarget.options.selectedIndex;
+                                console.log("selected index just changed via full rendering");
+                            }))
+
+                            
+                        );
+
+                        // if mutation observer technique is used - turn it back on.
+                        if (this._mutationObserver) {
+                            console.log('turning the mutation observer back on');
+                           /* var observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
+                            this._mutationObserver.observe(this._selectNode, observerConfig);*/
+
+                            this._mutationObserver = new MutationObserver(dojoLang.hitch(this,this._mutationDomTriggered));
+                            var observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
+                            this._mutationObserver.observe(this._selectNode, observerConfig);
+                        }                        
                     }
 
                     break;
@@ -722,29 +767,30 @@ define([
             // only act if the scrollable region contains the target;
             if (event.target.contains(this.domNode)) {
                 var newScrollDelta = event.target.scrollTop; 
-                this._updatedFixedHeight (newScrollDelta);
+                this._updatedFixedHeight (newScrollDelta); 
             }            
         },
 
         _unsubscribe: function () {
-          if ( this._eventHandles) {
-              dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
-                  this.disconnect(eventHandle);
-              }));
-                this._eventHandles = [];
-          }
+            if ( this._eventHandles) {
+                dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
+                    this.disconnect(eventHandle);
+                }));
+                    this._eventHandles = [];
+            }
 
-          if (this.useFixedPositioning) {
-              if (this._windowScrollListener !== null){
-                    this._windowScrollListener = window.removeEventListener("scroll", this._scrollListener, true);
-                    this._windowScrollListener = null;
-              }
+            if (this.useFixedPositioning) {
+                if (this._windowScrollListener !== null){
+                        this._windowScrollListener = window.removeEventListener("scroll", this._scrollListener, true);
+                        this._windowScrollListener = null;
+                }
             }
-            if (this._fallbackTimer) {
-                window.clearInterval(this._fallbackTimer);
+            /*if (this._fallbackTimer) {
+                //window.clearInterval(this._fallbackTimer);
                 console.log("clearing the timer");
-            }
+            }*/
             if (this._mutationObserver) {
+                console.log("disconnection mutation observer");
                 this._mutationObserver.disconnect();
             }
         },
