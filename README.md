@@ -34,7 +34,7 @@ Due to some differences in html markup, the widget doesn't work well with label-
 
 ## Release Notes
 Appstore 1.1 release:
-- fixed issue with data loading
+- fixed issue with dynamic data loading
 
 Appstore 1.0 release:
 - first version of the widget
