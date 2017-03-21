@@ -33,6 +33,9 @@ The widget adds a placeholder functionality as well as the creation of a stylabl
 Due to some differences in html markup, the widget doesn't work well with label-less input fields. If used without label but with enable disable editability: make sure to use an empty label.
 
 ## Release Notes
+Appstore 1.1 release:
+- fixed issue with data loading
+
 Appstore 1.0 release:
 - first version of the widget
 
