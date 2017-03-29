@@ -80,6 +80,7 @@ define([
         _fixedTop:null,
         _mutationObserver:null,
         _fallbackTimer:null,
+        _ieTenMode:null,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function () {
@@ -92,6 +93,7 @@ define([
             this._horizontalForm = false;
             this._dropUp = false;
             this._disableFullRender = false;
+            this._ieTenMode = false;
         },
 
         // dijit._WidgetBase.postCreate is called after constructing the widget. Implement to do extra setup work.
@@ -116,12 +118,16 @@ define([
                     }
                 }
             }
+
+            // check if ie10 is used as a browsers
+            if(dojoSniff("ie") & dojoSniff("ie") <= 10) {
+                this._ieTenMode = true;
+            }
         },
 
         // mxui.widget._WidgetBase.update is called when context is changed or initialized. Implement to re-render and / or fetch data.
         update: function (obj, callback) {
             logger.debug(this.id + ".update");
-            console.log("running update");
             this._contextObj = obj;
 
             // find all nodes
@@ -166,25 +172,15 @@ define([
                 this._selectedIndex = this._selectNode.options.selectedIndex;
                 // check if options are present yet
                 if (this._optionDomArray.length > 0) {
-                    console.log("found beautiful option elements");
+                    var temp = this._selectNode;
                     this._selectedIndex = this._selectNode.options.selectedIndex;
-                    this._dataUpdate(callback());
+                    this._dataUpdate(callback);
                 } else {
-                    // no options yet so we'll need a timer of sorts
-                    console.log("nothing found: build new stuff");
-                    
+                    // no options yet so we'll need a observer to keep track of changes after finishing the normal flow                    
                     this._resetSubscriptions();
                     this._updateRendering(callback);
 
-                    if(dojoSniff("ie") & dojoSniff("ie") <= 10) {
-                        // fallback for ie 10 browsers and below that
-                        this._fallbackTimer = window.setInterval(dojoLang.hitch(this,this._fallbackTriggered), 200);
-                    } else {
-                        console.log("going to build mutation observer here");
-                        this._mutationObserver = new MutationObserver(dojoLang.hitch(this,this._mutationDomTriggered));
-                        var observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
-                        this._mutationObserver.observe(this._selectNode, observerConfig);
-                    }        
+                    this._enableMonitoring(this._selectNode);
                 }
 
             } else {
@@ -194,25 +190,6 @@ define([
                 callback();
                 return;
             }           
-        },
-
-        _mutationDomTriggered: function(mutations) {
-            console.log("mutationDomTriggered"); 
-            mutations.forEach(dojoLang.hitch(this,function(mutation) {
-               console.log(mutation.type);
-
-            }))
-
-            this._optionDomArray = dojoQuery('option',this._selectNode);
-            if (this._optionDomArray.length > 0) {
-                this._selectedIndex = this._selectNode.options.selectedIndex;
-                // TODO check below: for keep updating, let the timer running - write logic though for comparing optionDomArray contents.
-                // window.clearInterval(this._fallbackTimer);
-                this._dataUpdate(function(){});
-            } else {
-                logger.debug("mutation triggered on Select element but no option elements found");
-            }
-            console.log("mutations done");
         },
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
@@ -264,16 +241,9 @@ define([
         // mxui.widget._WidgetBase.uninitialize is called when the widget is destroyed. Implement to do special tear-down work.
         uninitialize: function () {
             logger.debug(this.id + ".uninitialize");
+            this._disableMonitoring();
             this._unsubscribe();
             // Clean up listeners, helper objects, etc. There is no need to remove listeners added with this.connect / this.subscribe / this.own.
-            if (this._fallbackTimer) {
-                window.clearInterval(this._fallbackTimer);
-                console.log("clearing the timer");
-            }
-            if (this._mutationObserver) {
-                console.log("disconnection mutation observer");
-                //this._mutationObserver.disconnect();
-            }
         },
 
         // method that invokes updateRendering after data has been collected / is present
@@ -289,19 +259,6 @@ define([
 
             this._resetSubscriptions();
             this._updateRendering(callback);
-        },
-
-        // IE fallback method / polyfill for mutation observer
-        _fallbackTriggered: function() {
-            //var newDomArray = dojoQuery('option', this._selectNode); use for comparing new dom
-            this._optionDomArray = dojoQuery('option',this._selectNode);
-            console.log("alarm alarm ");
-            if (this._optionDomArray.length > 0) {
-                this._selectedIndex = this._selectNode.options.selectedIndex;
-                // TODO check below: for keep updating, let the timer running - write logic though for comparing optionDomArray contents.
-                // window.clearInterval(this._fallbackTimer);
-                this._dataUpdate(function(){});
-            }
         },
 
          // Rerender the interface. Note, this is a full render
@@ -337,7 +294,7 @@ define([
 
                     // hide the original select                         
                     dojoAttr.set(this._selectNode,"tabindex","-1"); 
-                    // dojoStyle.set(this._selectNode,"display","none"); TODO TURN BACK ON
+                    dojoStyle.set(this._selectNode,"display","none");
                     break;
                 case "default":
                 default:
@@ -412,30 +369,8 @@ define([
                             this._scrollListener = dojoLang.hitch(this,this._windowScrolled);
                         }
 
-                        // set listenening event to the select element
-                        console.log("setting the selectnode events hoor");
-                        this._selectNode.addEventListener("change", function(event) {
-                            console.log("selectnode changed hoor");
-                        }, true)
-                        this._eventHandles.push(                            
-                            this.connect(this._selectNode, "change", dojoLang.hitch(this, function(e){
-                                var newIndex = e.currentTarget.options.selectedIndex;
-                                console.log("selected index just changed via full rendering");
-                            }))
-
-                            
-                        );
-
-                        // if mutation observer technique is used - turn it back on.
-                        if (this._mutationObserver) {
-                            console.log('turning the mutation observer back on');
-                           /* var observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
-                            this._mutationObserver.observe(this._selectNode, observerConfig);*/
-
-                            this._mutationObserver = new MutationObserver(dojoLang.hitch(this,this._mutationDomTriggered));
-                            var observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
-                            this._mutationObserver.observe(this._selectNode, observerConfig);
-                        }                        
+                        // enable monitoring and observing techniques
+                        this._enableMonitoring(this._selectNode);                      
                     }
 
                     break;
@@ -771,6 +706,85 @@ define([
             }            
         },
 
+               // method for tracking external changes to the original select element
+        _enableMonitoring: function(domNode) {
+            var timerInterval = 200,
+                observerConfig;
+            
+            if (this._ieTenMode) {
+                this._fallbackTimer = window.setInterval(dojoLang.hitch(this,this._fallbackTriggered), timerInterval);
+            } else {
+                this._mutationObserver = new MutationObserver(dojoLang.hitch(this,this._mutationDomTriggered));
+                observerConfig = {childList: true, attributes: true, characterData: true, subtree: true};
+                this._mutationObserver.observe(domNode, observerConfig);
+            }
+        },
+
+        // method for disabling tracking changes to the original select element
+        _disableMonitoring: function() {
+            if (this._ieTenMode && this._fallbackTimer) {
+                window.clearInterval(this._fallbackTimer);
+            } else if (this._mutationObserver) {
+                this._mutationObserver.disconnect();
+            }
+        },
+
+        // mutation observer event handler: checks if options exist and if so updates the widget
+        _mutationDomTriggered: function(mutations) {
+            this._optionDomArray = dojoQuery('option',this._selectNode);
+            if (this._optionDomArray.length > 0) {
+                this._selectedIndex = this._selectNode.options.selectedIndex;
+                this._dataUpdate(function(){});
+            } else {
+                logger.debug("mutation triggered on Select element but no option elements found");
+            }
+        },
+
+         // IE fallback method / polyfill for mutation observer
+        _fallbackTriggered: function() {
+            var updateList = false,
+                option,
+                newOption;
+
+            this._optionDomArray = dojoQuery('option',this._selectNode);
+            
+            if (this._optionDomArray.length > 0) {
+                // first check if this is the first time we're running update script
+                if (this._optionArray && this._optionArray.length > 0) {
+                    if (this._selectNode.options.selectedIndex !== this._selectedIndex) {
+                        updateList = true;
+                    }
+                    if (this._optionDomArray.length !== this._optionArray.length) {
+                        updateList = true;
+                    }
+                    // final comparison - compare relevant content.
+                    if (!updateList){ 
+                        for (var i = 0; i < this._optionDomArray.length; i++) {
+                            option = this._optionArray[i];
+                            newOption = this._optionDomArray[i];
+                            if (option.value != newOption.value) {
+                                updateList = true;
+                                break;
+                            }
+                            if (option.index != newOption.index) {
+                                updateList = true;
+                                break;
+                            }
+                        }
+                    }
+
+                } else {
+                    // first time running the observer, always leads to update
+                    updateList = true;
+                }
+
+                if (updateList) {
+                    this._selectedIndex = this._selectNode.options.selectedIndex;
+                    this._dataUpdate(function(){});
+                }
+            }
+        },
+
         _unsubscribe: function () {
             if ( this._eventHandles) {
                 dojoArray.forEach( this._eventHandles, dojoLang.hitch(this, function( eventHandle){
@@ -785,14 +799,7 @@ define([
                         this._windowScrollListener = null;
                 }
             }
-            /*if (this._fallbackTimer) {
-                //window.clearInterval(this._fallbackTimer);
-                console.log("clearing the timer");
-            }*/
-            if (this._mutationObserver) {
-                console.log("disconnection mutation observer");
-                this._mutationObserver.disconnect();
-            }
+            this._disableMonitoring();
         },
 
         // Reset subscriptions.

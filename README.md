@@ -34,7 +34,9 @@ Due to some differences in html markup, the widget doesn't work well with label-
 
 ## Release Notes
 Appstore 1.1 release:
-- fixed issue with dynamic data loading
+- fixed issue with delays in original dropdown being filled with data
+- added observers to cope with external changes to the original element that don't trigger an update view event
+- added observer support for IE10
 
 Appstore 1.0 release:
 - first version of the widget
