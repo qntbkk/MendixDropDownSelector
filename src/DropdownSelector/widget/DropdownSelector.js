@@ -110,7 +110,7 @@ define([
                         this._disableFullRender = true;
                     }
                 }
-                
+
                 // apparently we're on mobile and need to disable any ui changing mode. best way is to set the mode.
                 if (this._disableFullRender) {
                     if (this.renderingMode === "full") {
@@ -138,8 +138,8 @@ define([
                 this._selectNode = dojoQuery('select',this._formGroupNode)[0];
                 // locate control - label
                 var labels = dojoQuery(".control-label",this._formGroupNode);
-                if (labels.length === 0) {                
-                    this._controlLabelUsed = false; 
+                if (labels.length === 0) {
+                    this._controlLabelUsed = false;
                 } else {
                     this._controlLabelUsed = true;
                     this._controlLabelNode = labels[0];
@@ -161,10 +161,12 @@ define([
             }
             if (this._selectNode) {
                 // set parent container - note: for some reason normal parent or parentNode doesn't work
-                this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div")[0];
+                this._selectNodeContainer = dojoQuery(this._selectNode).parents('div')[0];
                 if (this._horizontalForm) {
                     var horizontalInputWidth = this._retrieveInputWidth(this._selectNodeContainer);
-                    dojoClass.add(this.domNode, horizontalInputWidth);
+                    if (horizontalInputWidth !== null) {
+                        dojoClass.add(this.domNode, horizontalInputWidth);
+                    }
                 }
 
                 // prepare to create an array with all the possible options
@@ -176,7 +178,7 @@ define([
                     this._selectedIndex = this._selectNode.options.selectedIndex;
                     this._dataUpdate(callback);
                 } else {
-                    // no options yet so we'll need a observer to keep track of changes after finishing the normal flow                    
+                    // no options yet so we'll need a observer to keep track of changes after finishing the normal flow
                     this._resetSubscriptions();
                     this._updateRendering(callback);
 
@@ -189,7 +191,7 @@ define([
                 dojoConstruct.destroy(this.domNode);
                 callback();
                 return;
-            }           
+            }
         },
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
@@ -201,7 +203,7 @@ define([
                     // add and move the button once more
                     this.domNode.appendChild(this.selectDropdownButton);
                     dojoConstruct.place(this.selectDropdownButton,this.domNode,0);
-                    dojoStyle.set(this.domNode,"display",""); 
+                    dojoStyle.set(this.domNode,"display","");
                     break;
                 case "default":
                 default:
@@ -280,7 +282,7 @@ define([
 
                     // create the list items
                     dojoArray.forEach(this._optionArray,dojoLang.hitch(this, function(option){
-                        this._createListItem(option, this.dropdownSelectorMenuNode); 
+                        this._createListItem(option, this.dropdownSelectorMenuNode);
                     }));
 
                     // get the original menu height
@@ -292,8 +294,8 @@ define([
                     dojoAttr.set(this.selectValueFieldNode,'data-placeholder', this.placeholderText);
                     this._setSelectButton();
 
-                    // hide the original select                         
-                    dojoAttr.set(this._selectNode,"tabindex","-1"); 
+                    // hide the original select
+                    dojoAttr.set(this._selectNode,"tabindex","-1");
                     dojoStyle.set(this._selectNode,"display","none");
                     break;
                 case "default":
@@ -317,7 +319,7 @@ define([
                     break;
             }
 
-            this._setupEvents(callback);  
+            this._setupEvents(callback);
         },
 
         // We want to stop events on a mobile device
@@ -349,7 +351,7 @@ define([
                         this._eventHandles.push(this.connect(document, "click", dojoLang.hitch(this,function(event){
                             // if a widget external click is made: close the menu if open. first check though if the window click is not bubbled from this instance
                             //if (!this._selectNodeContainer.contains(event.target)){
-                            if (!this._formGroupNode.contains(event.target)) { 
+                            if (!this._formGroupNode.contains(event.target)) {
                                 var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded")
                                 if (isOpenString == "true") {
                                     this._toggleDropdown(isOpenString);
@@ -364,13 +366,13 @@ define([
                             this._eventHandles.push(this.connect(link, "keydown", dojoLang.hitch(this,this._optionLinkKeyDown)));
                         }));
 
-                        
+
                         if (this.useFixedPositioning) {
                             this._scrollListener = dojoLang.hitch(this,this._windowScrolled);
                         }
 
                         // enable monitoring and observing techniques
-                        this._enableMonitoring(this._selectNode);                      
+                        this._enableMonitoring(this._selectNode);
                     }
 
                     break;
@@ -378,7 +380,7 @@ define([
                 default:
                     this._eventHandles.push(
                         this.connect(this._selectNode, "click", dojoLang.hitch(this, function(e){
-                        
+
                         }))
                     );
 
@@ -395,7 +397,7 @@ define([
                     );
                     break;
             }
-            
+
             // The callback, coming from update, needs to be executed, to let the page know it finished rendering
             mendix.lang.nullExec(callback);
         },
@@ -404,7 +406,7 @@ define([
             var newListItemNode,
                 newLinkNode,
                 selected = false;
-            
+
             if (option.index == this._selectedIndex) {
                 selected = true;
             }
@@ -432,7 +434,7 @@ define([
             } else {
                 // we have a selected item
                 var selectedOption = this._optionArray[this._selectedIndex];
-                this.selectValueFieldNode.textContent = selectedOption.text; 
+                this.selectValueFieldNode.textContent = selectedOption.text;
                 dojoClass.remove(this.selectValueFieldNode,'placeholder');
             }
         },
@@ -531,8 +533,8 @@ define([
                 resultIndex = option.index;
                 if (foundIndex === 0) {
                     break;
-                } 
-            } 
+                }
+            }
             return resultIndex;
         },
 
@@ -559,7 +561,7 @@ define([
                     this._defineDropMenu();
                 }
                 this._setFocusOnListItem(this._selectedIndex);
-                
+
             } else {
                 // open menu - so close it
                 dojoClass.remove(this.domNode, "open");
@@ -568,11 +570,11 @@ define([
                 if (this.useFixedPositioning) {
                     dojoAttr.set(this.dropdownSelectorMenuNode,"style","");
                     // set back to original location for calculation reusage
-                    dojoConstruct.place(this.dropdownSelectorMenuNode,this.domNode,"last"); 
+                    dojoConstruct.place(this.dropdownSelectorMenuNode,this.domNode,"last");
                     // get rid of the scrollevent listener if (this.useFixedPositioning) {
                     if (this._windowScrollListener !== null){
                             this._windowScrollListener = window.removeEventListener("scroll", this._scrollListener, true);
-                            this._windowScrollListener = null; 
+                            this._windowScrollListener = null;
                     }
                 }
             }
@@ -612,13 +614,13 @@ define([
                 }
             }
             if (this.useFixedPositioning) {
-                
+
                 if (this._dropUp) {
                     newTop = buttonPosition.top - this.dropdownSelectorMenuNode.offsetHeight;
                 } else {
                     newTop = buttonPosition.top + this.selectDropdownButton.offsetHeight;
                 }
-                this._determineFixedPositioning(buttonPosition, newTop);      
+                this._determineFixedPositioning(buttonPosition, newTop);
             }
         },
 
@@ -632,10 +634,10 @@ define([
             height = height.toString() + "px";
             left = left.toString() + "px";
             dojoStyle.set(this.dropdownSelectorMenuNode,"overflow","auto");
-            dojoStyle.set(this.dropdownSelectorMenuNode,"width",width); 
+            dojoStyle.set(this.dropdownSelectorMenuNode,"width",width);
             dojoStyle.set(this.dropdownSelectorMenuNode,"height",height);
             dojoStyle.set(this.dropdownSelectorMenuNode,"left",left);
-            dojoStyle.set(this.dropdownSelectorMenuNode,"top",top); 
+            dojoStyle.set(this.dropdownSelectorMenuNode,"top",top);
             dojoStyle.set(this.dropdownSelectorMenuNode,"display","block");
             dojoStyle.set(this.dropdownSelectorMenuNode,"margin",0);
             var pageDom = dojoQuery('div.mx-page')[0];
@@ -644,7 +646,7 @@ define([
             // set event listener
             if (this._windowScrollListener === null) {
                 // scrollListener is set in the setup events bit
-                this._windowScrollListener = window.addEventListener("scroll", this._scrollListener, true); 
+                this._windowScrollListener = window.addEventListener("scroll", this._scrollListener, true);
             }
         },
 
@@ -674,7 +676,7 @@ define([
                 oldListLink = dojoTraverse(oldListItem).children()[0],
                 newListItem,
                 newListLink;
-            
+
             dojoClass.remove(oldListItem,"selected");
             dojoAttr.set(oldListLink,"aria-selected","false");
 
@@ -690,10 +692,13 @@ define([
             // adjust original select element
             this._selectNode.options.selectedIndex = this._selectedIndex;
             var newEvent = new Event('change');
-            this._selectNode.dispatchEvent(newEvent); 
+            this._selectNode.dispatchEvent(newEvent);
         },
 
         _retrieveInputWidth: function(node) {
+            if (!node) {
+                return null;
+            }
             return dojoAttr.get(node,"class");
         },
 
@@ -701,16 +706,16 @@ define([
             var scrollContainer = event.target;
             // only act if the scrollable region contains the target;
             if (event.target.contains(this.domNode)) {
-                var newScrollDelta = event.target.scrollTop; 
-                this._updatedFixedHeight (newScrollDelta); 
-            }            
+                var newScrollDelta = event.target.scrollTop;
+                this._updatedFixedHeight (newScrollDelta);
+            }
         },
 
                // method for tracking external changes to the original select element
         _enableMonitoring: function(domNode) {
             var timerInterval = 200,
                 observerConfig;
-            
+
             if (this._ieTenMode) {
                 this._fallbackTimer = window.setInterval(dojoLang.hitch(this,this._fallbackTriggered), timerInterval);
             } else {
@@ -747,7 +752,7 @@ define([
                 newOption;
 
             this._optionDomArray = dojoQuery('option',this._selectNode);
-            
+
             if (this._optionDomArray.length > 0) {
                 // first check if this is the first time we're running update script
                 if (this._optionArray && this._optionArray.length > 0) {
@@ -758,7 +763,7 @@ define([
                         updateList = true;
                     }
                     // final comparison - compare relevant content.
-                    if (!updateList){ 
+                    if (!updateList){
                         for (var i = 0; i < this._optionDomArray.length; i++) {
                             option = this._optionArray[i];
                             newOption = this._optionDomArray[i];
