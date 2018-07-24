@@ -33,6 +33,11 @@ The widget adds a placeholder functionality as well as the creation of a stylabl
 Due to some differences in html markup, the widget doesn't work well with label-less input fields. If used without label but with enable disable editability: make sure to use an empty label.
 
 ## Release Notes
+Appstore 1.2 release:
+- fixed horizontal form bug with incorrect width of form elements.
+- fixed bug that caused infinite loop on reloading the same page or when using snippets.
+- fixed bug in which a disabled field could no longer be clickable after becoming enabled again.
+
 Appstore 1.1 release:
 - fixed issue with delays in original dropdown being filled with data
 - added observers to cope with external changes to the original element that don't trigger an update view event

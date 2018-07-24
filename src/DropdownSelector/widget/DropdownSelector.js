@@ -76,6 +76,7 @@ define([
         _dropUp:null,
         _menuHeight:null,
         _windowScrollListener:null,
+        _pageLoadListener:null,
         _scrollListener:null,
         _fixedTop:null,
         _mutationObserver:null,
@@ -130,66 +131,10 @@ define([
             logger.debug(this.id + ".update");
             this._contextObj = obj;
 
-            // find all nodes
-            this._targetNameNode = dojoQuery(this.targetName);
-            this._targetNameNode = this._targetNameNode[0];
-            this._formGroupNode = this._targetNameNode;
-            if (this._formGroupNode) {
-                this._selectNode = dojoQuery('select',this._formGroupNode)[0];
-                // locate control - label
-                var labels = dojoQuery(".control-label",this._formGroupNode);
-                if (labels.length === 0) {                
-                    this._controlLabelUsed = false; 
-                } else {
-                    this._controlLabelUsed = true;
-                    this._controlLabelNode = labels[0];
+            this._pageLoadListener = this.connect(this.mxform, "onNavigation", dojoLang.hitch(this,this._firstInitialize));
 
-                    // if a label is present we can detect if it is vertical - note horizontal only enabled when label is present
-                    var classString = dojoAttr.get(this._controlLabelNode,"class");
-                    if (classString.indexOf("col-sm") !== -1) {
-                        this._horizontalForm = true;
-                    } else {
-                        this._horizontalForm = false;
-                    }
-                }
-            } else {
-                logger.debug("there was no Mendix widget found with the specified target name");
-                // destroy the template since something went wrong
-                dojoConstruct.destroy(this.domNode);
-                callback();
-                return;
-            }
-            if (this._selectNode) {
-                // set parent container - note: for some reason normal parent or parentNode doesn't work
-                this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div")[0];
-                if (this._horizontalForm) {
-                    var horizontalInputWidth = this._retrieveInputWidth(this._selectNodeContainer);
-                    dojoClass.add(this.domNode, horizontalInputWidth);
-                }
-
-                // prepare to create an array with all the possible options
-                this._optionDomArray = dojoQuery('option',this._selectNode);
-                this._selectedIndex = this._selectNode.options.selectedIndex;
-                // check if options are present yet
-                if (this._optionDomArray.length > 0) {
-                    var temp = this._selectNode;
-                    this._selectedIndex = this._selectNode.options.selectedIndex;
-                    this._dataUpdate(callback);
-                } else {
-                    // no options yet so we'll need a observer to keep track of changes after finishing the normal flow                    
-                    this._resetSubscriptions();
-                    this._updateRendering(callback);
-
-                    this._enableMonitoring(this._selectNode);
-                }
-
-            } else {
-                logger.debug("there was no select element found withing the specified Mendix widget");
-                // destroy the template since something went wrong
-                dojoConstruct.destroy(this.domNode);
-                callback();
-                return;
-            }           
+            // The callback, coming from update, needs to be executed, to let the page know it finished rendering
+            mendix.lang.nullExec(callback);    
         },
 
         // mxui.widget._WidgetBase.enable is called when the widget should enable editing. Implement to enable editing if widget is input widget.
@@ -202,6 +147,8 @@ define([
                     this.domNode.appendChild(this.selectDropdownButton);
                     dojoConstruct.place(this.selectDropdownButton,this.domNode,0);
                     dojoStyle.set(this.domNode,"display",""); 
+                    // reset all events
+                    this._setupEvents();
                     break;
                 case "default":
                 default:
@@ -235,7 +182,7 @@ define([
 
         // mxui.widget._WidgetBase.resize is called when the page's layout is recalculated. Implement to do sizing calculations. Prefer using CSS instead.
         resize: function (box) {
-          logger.debug(this.id + ".resize");
+            logger.debug(this.id + ".resize");
         },
 
         // mxui.widget._WidgetBase.uninitialize is called when the widget is destroyed. Implement to do special tear-down work.
@@ -246,8 +193,78 @@ define([
             // Clean up listeners, helper objects, etc. There is no need to remove listeners added with this.connect / this.subscribe / this.own.
         },
 
+        // method that waits till the page is loaded before implementing any changes to the dom
+        _firstInitialize:function(event) {
+            // get rid of the onload listener as we'll only need it once
+            if (this._pageLoadListener){
+                this.disconnect(this._pageLoadListener);
+            }
+
+            // find all nodes
+            this._targetNameNode = dojoQuery(this.targetName);
+            this._targetNameNode = this._targetNameNode[0];
+            this._formGroupNode = this._targetNameNode;
+            if (this._formGroupNode) {
+                this._selectNode = dojoQuery('select',this._formGroupNode)[0];
+                // locate control - label
+                var labels = dojoQuery(".control-label",this._formGroupNode);
+                if (labels.length === 0) {                
+                    this._controlLabelUsed = false; 
+                } else {
+                    this._controlLabelUsed = true;
+                    this._controlLabelNode = labels[0];
+
+                    // if a label is present we can detect if it is vertical - note horizontal only enabled when label is present
+                    var classString = dojoAttr.get(this._controlLabelNode,"class");
+                    if (classString.indexOf("col-sm") !== -1) {
+                        this._horizontalForm = true;
+                    } else {
+                        this._horizontalForm = false;
+                    }
+                }
+            } else {
+                logger.debug("there was no Mendix widget found with the specified target name." + this.id);
+                // destroy the template since something went wrong
+                dojoConstruct.destroy(this.domNode);
+                return;
+            }
+            if (this._selectNode) {
+                // set parent container - note: for some reason normal parent or parentNode doesn't work
+                this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div")[0];
+                if (this._horizontalForm) {
+                    this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div[class*='col-']")[0];
+                    if (this._selectNodeContainer) {
+                        var horizontalInputWidth = this._retrieveInputWidth(this._selectNodeContainer);
+                        dojoClass.add(this.domNode, horizontalInputWidth);
+                    }  
+                }
+
+                // prepare to create an array with all the possible options
+                this._optionDomArray = dojoQuery('option',this._selectNode);
+                this._selectedIndex = this._selectNode.options.selectedIndex;
+                // check if options are present yet
+                if (this._optionDomArray.length > 0) {
+                    var temp = this._selectNode;
+                    this._selectedIndex = this._selectNode.options.selectedIndex;
+                    this._dataUpdate();
+                } else {
+                    logger.debug("there were no options within the select element ." + this.id);
+                    // no options yet so we can destroy the dom                   
+                    this._resetSubscriptions();
+                    this._updateRendering();
+
+                }
+
+            } else {
+                logger.debug("there was no select element found withing the specified Mendix widget ." + this.id);
+                // destroy the template since something went wrong
+                dojoConstruct.destroy(this.domNode);
+                return;
+            }
+        },
+
         // method that invokes updateRendering after data has been collected / is present
-        _dataUpdate: function(callback) {
+        _dataUpdate: function() {
             this._optionArray = [];
             dojoArray.forEach(this._optionDomArray,dojoLang.hitch(this, function(option){
                 var optionElement = {index: option.index, value: option.value, text: option.text};
@@ -258,11 +275,11 @@ define([
             }));
 
             this._resetSubscriptions();
-            this._updateRendering(callback);
+            this._updateRendering();
         },
 
          // Rerender the interface. Note, this is a full render
-        _updateRendering: function (callback) {
+        _updateRendering: function () {
             logger.debug(this.id + "._updateRendering");
 
             switch(this.renderingMode) {
@@ -317,7 +334,7 @@ define([
                     break;
             }
 
-            this._setupEvents(callback);  
+            this._setupEvents();  
         },
 
         // We want to stop events on a mobile device
@@ -329,7 +346,7 @@ define([
         },
 
         // Attach events to HTML dom elements
-        _setupEvents: function (callback) {
+        _setupEvents: function () {
             logger.debug(this.id + "._setupEvents");
 
              switch(this.renderingMode) {
@@ -352,7 +369,7 @@ define([
                             if (!this._formGroupNode.contains(event.target)) { 
                                 var isOpenString = dojoAttr.get(this.selectDropdownButton,"aria-expanded")
                                 if (isOpenString == "true") {
-                                    this._toggleDropdown(isOpenString);
+                                    this._toggleDropdown(isOpenString); 
                                 }
                             }
                         })));
@@ -395,9 +412,6 @@ define([
                     );
                     break;
             }
-            
-            // The callback, coming from update, needs to be executed, to let the page know it finished rendering
-            mendix.lang.nullExec(callback);
         },
 
         _createListItem: function(option, listNode) {
@@ -694,7 +708,19 @@ define([
         },
 
         _retrieveInputWidth: function(node) {
-            return dojoAttr.get(node,"class");
+            var classes,
+                result = "",
+                i;
+            
+            classes = dojoAttr.get(node,"class");
+            classes = classes.split(" ");
+            for (i = 0; i < classes.length; i++) {
+                if (classes[i].indexOf("col-sm") !== -1) {
+                    result = classes[i];
+                    return(result);
+                }
+            }
+            return result; 
         },
 
         _windowScrolled:function(event) {
@@ -706,8 +732,9 @@ define([
             }            
         },
 
-               // method for tracking external changes to the original select element
+        // method for tracking external changes to the original select element
         _enableMonitoring: function(domNode) {
+            logger.debug(this.id + "_starting mutationobserver");
             var timerInterval = 200,
                 observerConfig;
             
@@ -736,7 +763,7 @@ define([
                 this._selectedIndex = this._selectNode.options.selectedIndex;
                 this._dataUpdate(function(){});
             } else {
-                logger.debug("mutation triggered on Select element but no option elements found");
+                logger.debug(this.id + "_mutation triggered on Select element but no option elements found");
             }
         },
 
@@ -780,7 +807,7 @@ define([
 
                 if (updateList) {
                     this._selectedIndex = this._selectNode.options.selectedIndex;
-                    this._dataUpdate(function(){});
+                    this._dataUpdate();
                 }
             }
         },
@@ -791,6 +818,10 @@ define([
                     this.disconnect(eventHandle);
                 }));
                     this._eventHandles = [];
+            }
+
+            if (this._pageLoadListener){
+                this.disconnect(this._pageLoadListener);
             }
 
             if (this.useFixedPositioning) {
