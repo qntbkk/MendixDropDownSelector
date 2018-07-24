@@ -4,9 +4,9 @@
     ========================
 
     @file      : DropdownSelector.js
-    @version   : 1.0.0
+    @version   : 1.2.0
     @author    : Willem Gorisse
-    @date      : 11/3/2016
+    @date      : 24/7/2018
     @copyright : Mendix 2016
     @license   : Apache 2
 
@@ -95,6 +95,7 @@ define([
             this._dropUp = false;
             this._disableFullRender = false;
             this._ieTenMode = false;
+            console.log("blaaaalla");
         },
 
         // dijit._WidgetBase.postCreate is called after constructing the widget. Implement to do extra setup work.
