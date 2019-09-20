@@ -11,6 +11,11 @@
             <category>General</category>
             <description>Enter the name of the dropdown that needs to be enhanced.</description>
         </property>
+        <property key="enableName" type="string" required="true" defaultValue="">
+            <caption>Target Attribute Name</caption>
+            <category>General</category>
+            <description>Enter the name of the dropdown that needs to be enhanced.</description>
+        </property>
         <property key="placeholderText" type="string" required="false" defaultValue="">
             <caption>Placeholder</caption>
             <category>Appearance</category>

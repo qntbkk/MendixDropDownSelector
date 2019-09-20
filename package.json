@@ -5,7 +5,9 @@
   "license": "Apache 2",
   "author": "<You>",
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "natives": "^1.1.6"
+  },
   "devDependencies": {
     "del": "^2.2.2",
     "gulp": "^3.9.1",

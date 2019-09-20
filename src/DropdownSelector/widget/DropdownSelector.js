@@ -52,6 +52,7 @@ define([
         // Parameters configured in the Modeler.
         placeholderText: "",
         targetName: "",
+        enableName: "",
         renderingMode: null,
         disableOnDevice: null,
         useFixedPositioning: null,
@@ -82,6 +83,8 @@ define([
         _mutationObserver:null,
         _fallbackTimer:null,
         _ieTenMode:null,
+        _enableValue:null,
+        _isFirstLoad:null,
 
         // dojo.declare.constructor is called to construct the widget instance. Implement to initialize non-primitive properties.
         constructor: function () {
@@ -95,6 +98,7 @@ define([
             this._dropUp = false;
             this._disableFullRender = false;
             this._ieTenMode = false;
+            this._isFirstLoad = false;
             console.log("blaaaalla");
         },
 
@@ -125,12 +129,16 @@ define([
             if(dojoSniff("ie") & dojoSniff("ie") <= 10) {
                 this._ieTenMode = true;
             }
+
+            this._isFirstLoad = true;
         },
 
         // mxui.widget._WidgetBase.update is called when context is changed or initialized. Implement to re-render and / or fetch data.
         update: function (obj, callback) {
             logger.debug(this.id + ".update");
             this._contextObj = obj;
+
+            this._enableValue = this._contextObj.get(this.enableName);
 
             this._pageLoadListener = this.connect(this.mxform, "onNavigation", dojoLang.hitch(this,this._firstInitialize));
 
@@ -145,11 +153,21 @@ define([
                 case "full":
                     // reset the styling and button. Note that the update function will be triggered after this.
                     // add and move the button once more
-                    this.domNode.appendChild(this.selectDropdownButton);
-                    dojoConstruct.place(this.selectDropdownButton,this.domNode,0);
-                    dojoStyle.set(this.domNode,"display",""); 
+                    
+                    // this.domNode.appendChild(this.selectDropdownButton);
+                    // dojoConstruct.place(this.selectDropdownButton,this.domNode,0);
+                    // dojoStyle.set(this.domNode,"display",""); 
                     // reset all events
-                    this._setupEvents();
+                    //this._setupEvents();
+                    this._enableValue = this._contextObj.get(this.enableName);
+
+                    if(this._isFirstLoad === false){
+                        if(this._enableValue === true){
+                            this.selectDropdownButton.disabled = false;
+                            this._dataUpdate();
+                        };
+                    };
+                    
                     break;
                 case "default":
                 default:
@@ -170,9 +188,18 @@ define([
                         dojoConstruct.destroy(optionDom);
                     }));
                     this._newOptionDomArray = [];
-                    dojoStyle.set(this.domNode,"display","none");
+                    //dojoStyle.set(this.domNode,"display","none");
                     // remove button but keep it in memory
-                    this.domNode.removeChild(this.selectDropdownButton);
+                    //this.domNode.removeChild(this.selectDropdownButton);
+                    this._enableValue = this._contextObj.get(this.enableName);
+
+                    if(this._enableValue === false){
+                        if(!this.selectDropdownButton.disabled){
+                            this.selectDropdownButton.disabled = true;
+                        }
+                        this._dataUpdate();
+                    }
+                    
                     break;
                 case "default":
                 default:
@@ -184,6 +211,16 @@ define([
         // mxui.widget._WidgetBase.resize is called when the page's layout is recalculated. Implement to do sizing calculations. Prefer using CSS instead.
         resize: function (box) {
             logger.debug(this.id + ".resize");
+            if(this._isFirstLoad === true){
+                if(this._enableValue === false){
+                    this.selectDropdownButton.disabled = true
+                }
+                if(this._enableValue === true){
+                    this.selectDropdownButton.disabled = false
+                }
+                //this._isFirstLoad = false;
+            }
+            
         },
 
         // mxui.widget._WidgetBase.uninitialize is called when the widget is destroyed. Implement to do special tear-down work.
@@ -231,6 +268,16 @@ define([
             }
             if (this._selectNode) {
                 // set parent container - note: for some reason normal parent or parentNode doesn't work
+
+                if(this._enableValue === true){
+                    this.selectDropdownButton.disabled = false;
+                }
+
+                if(this._enableValue === true){
+                    this.selectDropdownButton.disabled = false
+                }
+
+
                 this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div")[0];
                 if (this._horizontalForm) {
                     this._selectNodeContainer = dojoTraverse(this._selectNode).parents("div[class*='col-']")[0];
@@ -759,13 +806,45 @@ define([
 
         // mutation observer event handler: checks if options exist and if so updates the widget
         _mutationDomTriggered: function(mutations) {
-            this._optionDomArray = dojoQuery('option',this._selectNode);
-            if (this._optionDomArray.length > 0) {
-                this._selectedIndex = this._selectNode.options.selectedIndex;
-                this._dataUpdate(function(){});
-            } else {
-                logger.debug(this.id + "_mutation triggered on Select element but no option elements found");
+
+            //update value during change action on mendix form
+            this._enableValue = this._contextObj.get(this.enableName);
+
+            if(this._enableValue === false){
+                if(!this.selectDropdownButton.disabled){
+                    this.selectDropdownButton.disabled = true;
+                }
+
+                this._optionDomArray = dojoQuery('option',this._selectNode);
+                if (this._optionDomArray.length > 0) {
+                    this._selectedIndex = this._selectNode.options.selectedIndex;
+                    this._dataUpdate(function(){});
+                } else {
+                    logger.debug(this.id + "_mutation triggered on Select element but no option elements found");
+                }
+
             }
+            if(this._enableValue === true){
+
+                if(this._isFirstLoad === true){
+                    this._isFirstLoad = false;
+                    this._resetSubscriptions();
+                    // try to create a new list and enable
+                    this._firstInitialize();
+                    this.enable();
+                    //this._updateRendering();
+                    
+                }
+
+                this._optionDomArray = dojoQuery('option',this._selectNode);
+                if (this._optionDomArray.length > 0) {
+                    this._selectedIndex = this._selectNode.options.selectedIndex;
+                    this._dataUpdate(function(){});
+                } else {
+                    logger.debug(this.id + "_mutation triggered on Select element but no option elements found");
+                }
+            }
+            
         },
 
          // IE fallback method / polyfill for mutation observer
